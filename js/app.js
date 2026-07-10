@@ -13,7 +13,7 @@ const App = (() => {
 
   let _currentScreen = 'home';
   let _loadedSong    = null;
-  let _customSongs   = []; // user-uploaded via file picker
+  let _customSongs   = []; // user-uploaded MIDI and optional original audio
 
   // ── Screen switching ──────────────────────────────────────
   function showScreen(id) {
@@ -77,29 +77,24 @@ const App = (() => {
         ...(_customSongs.map(s => ({ name: s.name, _song: s, emoji: '🎵' }))),
       ];
 
-      // Upload button
-      const uploadCard = document.createElement('label');
-      uploadCard.className = 'song-card';
-      uploadCard.style.cursor = 'pointer';
+      // Pair a MIDI chart with the user's licensed audio file.
+      const uploadCard = document.createElement('section');
+      uploadCard.className = 'upload-card';
       uploadCard.innerHTML = `
-        <div class="song-thumb" style="background:#232840">➕</div>
-        <div class="song-info">
-          <div class="song-title">Загрузить MIDI файл</div>
-          <div class="song-meta">.mid / .midi</div>
-        </div>
-        <input type="file" accept=".mid,.midi" style="display:none" id="midi-upload-input" />
-      `;
-      uploadCard.querySelector('input').addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        try {
-          const song = await MidiPlayer.loadFile(file);
-          _customSongs.push(song);
-          _renderList();
-        } catch (err) {
-          alert('Ошибка загрузки MIDI: ' + err.message);
-        }
-        e.target.value = '';
+        <div class="upload-icon">🎧</div>
+        <div class="upload-copy"><h3>Добавь свою песню</h3><p>Выбери MIDI с нотами и аудио с оригинальным звучанием.</p></div>
+        <label class="file-pick"><span>1. MIDI</span><input type="file" accept=".mid,.midi,audio/midi" id="midi-upload-input" /></label>
+        <label class="file-pick"><span>2. Аудио</span><input type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac" id="audio-upload-input" /></label>
+        <button class="btn-primary upload-song-btn" type="button">Добавить песню</button>
+        <p class="upload-error" role="alert"></p>`;
+      uploadCard.querySelector('.upload-song-btn').addEventListener('click', async () => {
+        const midiFile = uploadCard.querySelector('#midi-upload-input').files[0];
+        const audioFile = uploadCard.querySelector('#audio-upload-input').files[0];
+        const error = uploadCard.querySelector('.upload-error');
+        error.textContent = '';
+        if (!midiFile || !audioFile) { error.textContent = 'Выбери оба файла: MIDI и аудио.'; return; }
+        try { const song = await MidiPlayer.loadFile(midiFile); song.audioUrl = URL.createObjectURL(audioFile); song.audioName = audioFile.name; _customSongs.push(song); _renderList(); }
+        catch (err) { error.textContent = 'MIDI не открылся. Проверь файл и попробуй снова.'; }
       });
       container.appendChild(uploadCard);
 
@@ -116,7 +111,7 @@ const App = (() => {
           <div class="song-thumb">${entry.emoji}</div>
           <div class="song-info">
             <div class="song-title">${entry.name}</div>
-            <div class="song-meta">${entry._song ? `${noteCount} нот · ${dur}` : 'Встроенная'}</div>
+            <div class="song-meta">${entry._song ? `${noteCount} нот · ${dur} · ${entry._song.audioUrl ? 'оригинальное аудио' : 'MIDI-звук'}` : 'Учебная версия'}</div>
           </div>
           <span class="song-arrow">›</span>
         `;
@@ -198,6 +193,8 @@ const App = (() => {
     const pollInput  = document.getElementById('settings-poll');
     const speedInput = document.getElementById('settings-speed');
     const speedVal   = document.getElementById('settings-speed-val');
+    const tempoInput = document.getElementById('settings-tempo');
+    const tempoVal   = document.getElementById('settings-tempo-val');
     const winInput   = document.getElementById('settings-window');
     const winVal     = document.getElementById('settings-window-val');
     const volInput   = document.getElementById('settings-vol');
@@ -230,11 +227,14 @@ const App = (() => {
     pollInput.value  = ESP32.pollInterval;
     speedInput.value = Game.getSpeed();
     speedVal.textContent = Game.getSpeed() + ' px/s';
+    tempoInput.value = Math.round(MidiPlayer.getTempo() * 100);
+    tempoVal.textContent = tempoInput.value + '%';
     winInput.value   = Game.getWindow();
     winVal.textContent   = Game.getWindow();
     volInput.value   = Math.round(MidiPlayer.getVolume() * 100);
     volVal.textContent   = Math.round(MidiPlayer.getVolume() * 100) + '%';
 
+    tempoInput.addEventListener('input', () => { tempoVal.textContent = tempoInput.value + '%'; });
     speedInput.addEventListener('input', () => {
       markBoundedNumber(speedInput, 100, 600);
       speedVal.textContent = speedInput.value + ' px/s';
@@ -250,15 +250,18 @@ const App = (() => {
 
     saveBtn.addEventListener('click', () => {
       const speed = readBoundedNumber(speedInput, 100, 600, Game.getSpeed());
+      const tempo = readBoundedNumber(tempoInput, 50, 100, Math.round(MidiPlayer.getTempo() * 100));
       const hitWindow = readBoundedNumber(winInput, 80, 400, Game.getWindow());
       const volume = readBoundedNumber(volInput, 0, 100, Math.round(MidiPlayer.getVolume() * 100));
 
       ESP32.setIP(espIp.value.trim());
       ESP32.setPollInterval(parseInt(pollInput.value, 10));
       Game.setSpeed(speed);
+      MidiPlayer.setTempo(tempo / 100);
       Game.setWindow(hitWindow);
       MidiPlayer.setVolume(volume / 100);
       speedVal.textContent = speed + ' px/s';
+      tempoVal.textContent = tempo + '%';
       winVal.textContent = hitWindow;
       volVal.textContent = volume + '%';
 
