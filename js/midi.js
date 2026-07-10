@@ -298,9 +298,14 @@ const MidiPlayer = (() => {
       },
       stop() {
         _stopped = true;
+        if (audio) { audio.pause(); audio.currentTime = 0; }
+        if (_activeAudio === audio) _activeAudio = null;
         cancelAnimationFrame(_raf);
       },
-      get currentMs() { return _paused ? _offsetMs : (performance.now() - _startWallTime) + _offsetMs; },
+      get currentMs() {
+        if (audio) return audio.currentTime * 1000;
+        return _paused ? _offsetMs : (performance.now() - _startWallTime) * _tempo + _offsetMs;
+      },
     };
   }
 
