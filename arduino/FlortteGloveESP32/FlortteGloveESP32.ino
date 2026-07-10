@@ -55,6 +55,15 @@ int readAverage(int pin) {
   return sum / SAMPLES;
 }
 
+void disableFinger(int index) {
+  fingerEnabled[index] = false;
+  straightValues[index] = 4095;
+  bentValues[index] = 4095;
+  filteredValues[index] = 4095;
+  calibratedValues[index] = 4095;
+  bendPercents[index] = 0;
+}
+
 void beginWebCalibration() {
   isCalibrating = true;
   Serial.println("WEB CALIBRATION START");
