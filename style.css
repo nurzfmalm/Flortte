@@ -809,3 +809,7 @@ input[type="range"] { accent-color: var(--violet); min-height: 38px; }
   .lane-key { min-height: 108px; }
   .lane-gesture-icon { height: 70px; }
 }
+
+.calibration-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.calibration-actions .btn-primary { padding: 10px 20px; box-shadow: none; }
+.calibration-actions [hidden] { display: none; }
