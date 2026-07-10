@@ -14,7 +14,6 @@ const IPAddress AP_IP(192, 168, 4, 1);
 const IPAddress AP_GATEWAY(192, 168, 4, 1);
 const IPAddress AP_SUBNET(255, 255, 255, 0);
 
-const int BUTTON_PIN = 0; // IO0 / BOOT
 const int SERVER_PORT = 8080;
 
 const int FINGER_COUNT = 3;
@@ -56,101 +55,52 @@ int readAverage(int pin) {
   return sum / SAMPLES;
 }
 
-void waitForButtonPress() {
-  while (digitalRead(BUTTON_PIN) == HIGH) {
-    delay(10);
-  }
-
-  delay(50);
-
-  while (digitalRead(BUTTON_PIN) == LOW) {
-    delay(10);
-  }
-
-  delay(200);
-}
-
-void printFingerPrompt(int index, const char* pose) {
-  Serial.println();
-  Serial.print(FINGER_NAMES[index]);
-  Serial.print(": ");
-  Serial.println(pose);
-  Serial.println("Press IO0 / BOOT to save.");
-}
-
-void disableFinger(int index) {
-  fingerEnabled[index] = false;
-  straightValues[index] = 4095;
-  bentValues[index] = 4095;
-  filteredValues[index] = 4095;
-  calibratedValues[index] = 4095;
-  bendPercents[index] = 0;
-
-  Serial.print(FINGER_NAMES[index]);
-  Serial.println(" disabled: range is too small, sensor/finger is optional.");
-}
-
-void calibrateFinger(int index) {
-  if (!FINGER_PRESENT[index]) {
-    Serial.println();
-    Serial.print("SKIPPING ");
-    Serial.print(FINGER_NAMES[index]);
-    Serial.println(": marked as not installed in FINGER_PRESENT.");
-    disableFinger(index);
-    return;
-  }
-
-  Serial.println();
-  Serial.print("CALIBRATING ");
-  Serial.println(FINGER_NAMES[index]);
-
-  printFingerPrompt(index, "bend this finger to MAXIMUM");
-  waitForButtonPress();
-  bentValues[index] = readAverage(FLEX_PINS[index]);
-  Serial.print("Bent value saved: ");
-  Serial.println(bentValues[index]);
-
-  printFingerPrompt(index, "straighten this finger");
-  waitForButtonPress();
-  straightValues[index] = readAverage(FLEX_PINS[index]);
-  Serial.print("Straight value saved: ");
-  Serial.println(straightValues[index]);
-
-  int range = abs(straightValues[index] - bentValues[index]);
-  Serial.print("Range: ");
-  Serial.println(range);
-
-  if (range >= MIN_CALIBRATION_RANGE) {
-    fingerEnabled[index] = true;
-    filteredValues[index] = readAverage(FLEX_PINS[index]);
-    Serial.print(FINGER_NAMES[index]);
-    Serial.println(" calibration done.");
-    return;
-  }
-
-  disableFinger(index);
-  delay(1000);
-}
-
-void calibrateAllSensors() {
+void beginWebCalibration() {
   isCalibrating = true;
+  Serial.println("WEB CALIBRATION START");
+}
 
-  Serial.println();
-  Serial.println("CALIBRATION START");
-  Serial.println("Calibrate each finger separately.");
-  Serial.println("If a finger/sensor is missing, save the same pose twice.");
+void captureBentPose() {
+  if (!isCalibrating) {
+    beginWebCalibration();
+  }
 
   for (int i = 0; i < FINGER_COUNT; i++) {
-    calibrateFinger(i);
+    if (!FINGER_PRESENT[i]) {
+      disableFinger(i);
+      continue;
+    }
+    bentValues[i] = readAverage(FLEX_PINS[i]);
+  }
+
+  Serial.println("Bent pose saved from website.");
+}
+
+void captureStraightPose() {
+  if (!isCalibrating) {
+    beginWebCalibration();
+  }
+
+  for (int i = 0; i < FINGER_COUNT; i++) {
+    if (!FINGER_PRESENT[i]) {
+      disableFinger(i);
+      continue;
+    }
+
+    straightValues[i] = readAverage(FLEX_PINS[i]);
+    const int range = abs(straightValues[i] - bentValues[i]);
+
+    if (range >= MIN_CALIBRATION_RANGE) {
+      fingerEnabled[i] = true;
+      filteredValues[i] = straightValues[i];
+    } else {
+      disableFinger(i);
+    }
   }
 
   calibratedAt = millis();
   isCalibrating = false;
-
-  Serial.println();
-  Serial.println("CALIBRATION DONE");
-  Serial.println("Reading data...");
-  Serial.println();
+  Serial.println("Straight pose saved. Web calibration complete.");
 }
 
 int toCalibratedAdc(int index, int cleanValue) {
@@ -481,7 +431,21 @@ void handleSetCalibration() {
 }
 
 void handleCalibrate() {
-  calibrateAllSensors();
+  const String action = server.arg("action");
+
+  if (action == "start") {
+    beginWebCalibration();
+  } else if (action == "bent") {
+    captureBentPose();
+  } else if (action == "open") {
+    captureStraightPose();
+  } else if (action == "cancel") {
+    isCalibrating = false;
+  } else {
+    sendJson(400, "{\"error\":\"action must be start, bent, open or cancel\"}");
+    return;
+  }
+
   updateSensors();
   sendJson(200, buildStateJson());
 }
@@ -510,8 +474,6 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
 
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
-
   analogReadResolution(12);
   for (int i = 0; i < FINGER_COUNT; i++) {
     if (FINGER_PRESENT[i]) {
@@ -538,7 +500,7 @@ void setup() {
 
   Serial.println();
   Serial.println("HTTP server is ready.");
-  Serial.println("Open the web diagnostics screen and press Calibrate when you are ready.");
+  Serial.println("Open Diagnostics and complete all calibration steps on the website.");
   Serial.println("Default calibration is active until manual calibration is saved.");
   Serial.println();
 }
