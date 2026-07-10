@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Flortte — Glove Piano</title>
-  <link rel="stylesheet" href="style.css?v=esp-proxy-20260709-4" />
+  <link rel="stylesheet" href="style.css?v=kids-audio-20260710-1" />
 </head>
 <body>
 
@@ -55,7 +55,7 @@
   <div id="screen-songs" class="screen">
     <div class="screen-header">
       <button class="btn-back" id="songs-back">← Назад</button>
-      <h2>Выбор песни</h2>
+      <div class="header-copy"><h2>Выбери мелодию</h2><p>Играй спокойно, шаг за шагом</p></div>
     </div>
     <div class="song-list" id="song-list">
       <!-- populated by app.js -->
@@ -289,9 +289,14 @@
       <div class="setting-group">
         <h3>Игра</h3>
         <label>
-          <span>Скорость нот</span>
+          <span>Скорость падения нот</span>
           <input type="text" inputmode="numeric" pattern="[0-9]*" id="settings-speed" value="300" />
           <span id="settings-speed-val">300 px/s</span>
+        </label>
+        <label class="tempo-setting">
+          <span>Темп песни</span>
+          <input type="range" id="settings-tempo" min="50" max="100" step="5" value="70" />
+          <span id="settings-tempo-val">70%</span>
         </label>
         <label>
           <span>Окно попадания (мс)</span>
@@ -323,11 +328,11 @@
   </div>
 
   <!-- ═══════════════════════════════ SCRIPTS ═══════════════════════════════ -->
-  <script src="js/esp32.js?v=esp-proxy-20260709-4"></script>
-  <script src="js/gestures.js?v=esp-proxy-20260709-4"></script>
-  <script src="js/midi.js?v=esp-proxy-20260709-4"></script>
-  <script src="js/diagnostics.js?v=esp-proxy-20260709-4"></script>
-  <script src="js/game.js?v=esp-proxy-20260709-4"></script>
-  <script src="js/app.js?v=esp-proxy-20260709-4"></script>
+  <script src="js/esp32.js?v=kids-audio-20260710-1"></script>
+  <script src="js/gestures.js?v=kids-audio-20260710-1"></script>
+  <script src="js/midi.js?v=kids-audio-20260710-1"></script>
+  <script src="js/diagnostics.js?v=kids-audio-20260710-1"></script>
+  <script src="js/game.js?v=kids-audio-20260710-1"></script>
+  <script src="js/app.js?v=kids-audio-20260710-1"></script>
 </body>
 </html>
