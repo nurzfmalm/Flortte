@@ -33,6 +33,7 @@ const Diagnostics = (() => {
   let _thresholdInputs = [1000, 1000, 1000];
   let _ddGesture, _ddNote, _statusDot;
   let _calibrationStatus, _calibrateButton, _applyCalibrationButton;
+  let _captureBentButton, _captureOpenButton, _cancelCalibrationButton;
   let _calibrationSteps = [];
   let _calibrationInputs = [];
   let _isCalibrating = false;
@@ -55,6 +56,9 @@ const Diagnostics = (() => {
     _calibrationStatus = document.getElementById('calibration-status');
     _calibrateButton = document.getElementById('btn-calibrate');
     _applyCalibrationButton = document.getElementById('btn-apply-calibration');
+    _captureBentButton = document.getElementById('btn-capture-bent');
+    _captureOpenButton = document.getElementById('btn-capture-open');
+    _cancelCalibrationButton = document.getElementById('btn-cancel-calibration');
     _calibrationSteps = Array.from(document.querySelectorAll('#calibration-steps li'));
     _ddGesture  = document.getElementById('dd-gesture');
     _ddNote     = document.getElementById('dd-note');
@@ -263,27 +267,52 @@ const Diagnostics = (() => {
     if (_active) _raf = requestAnimationFrame(_rafLoop);
   }
 
-  async function _runCalibration() {
-    if (_isCalibrating) return;
+  function _showCalibrationAction(step) {
+    if (_captureBentButton) _captureBentButton.hidden = step !== 'bent';
+    if (_captureOpenButton) _captureOpenButton.hidden = step !== 'open';
+    if (_cancelCalibrationButton) _cancelCalibrationButton.hidden = step === 'idle';
+    if (_calibrateButton) _calibrateButton.hidden = step !== 'idle';
+  }
 
+  async function _sendCalibrationStep(action) {
+    if (_isCalibrating && action === 'start') return;
     _isCalibrating = true;
     _calibrationDirty = false;
-    if (_calibrateButton) _calibrateButton.disabled = true;
-    _setCalibrationSteps('running');
-    _setCalibrationStatus('Идет калибровка на ESP32: если пальца нет, сохраните два одинаковых положения BOOT-кнопкой.', 'running');
+
+    const copy = {
+      start: 'Согните все подключенные пальцы до максимума.',
+      bent: 'Сгиб сохранён. Теперь полностью выпрямите пальцы.',
+      open: 'Калибровка завершена.',
+      cancel: 'Калибровка отменена.',
+    };
 
     try {
-      const state = await ESP32.calibrate();
+      const state = await ESP32.calibrate(action);
       _syncCalibrationInputs(state, { force: true });
-      _setCalibrationSteps('done');
-      _setCalibrationStatus('Готово. Пальцы с малым диапазоном отключены и не будут мешать игре.', 'done');
+
+      if (action === 'start') {
+        _setCalibrationSteps('running');
+        _showCalibrationAction('bent');
+      } else if (action === 'bent') {
+        _setCalibrationSteps('running');
+        _showCalibrationAction('open');
+      } else {
+        _setCalibrationSteps(action === 'open' ? 'done' : 'idle');
+        _showCalibrationAction('idle');
+        _isCalibrating = false;
+      }
+
+      _setCalibrationStatus(copy[action], action === 'open' ? 'done' : 'running');
     } catch (err) {
-      _setCalibrationSteps('error');
-      _setCalibrationStatus(`Калибровка не выполнена: ${err.message}`, 'error');
-    } finally {
       _isCalibrating = false;
-      if (_calibrateButton) _calibrateButton.disabled = false;
+      _showCalibrationAction('idle');
+      _setCalibrationSteps('error');
+      _setCalibrationStatus(`Шаг не выполнен: ${err.message}`, 'error');
     }
+  }
+
+  async function _runCalibration() {
+    await _sendCalibrationStep('start');
   }
 
   async function _applyCalibrationInputs() {
@@ -388,6 +417,9 @@ const Diagnostics = (() => {
     });
 
     _calibrateButton?.addEventListener('click', _runCalibration);
+    _captureBentButton?.addEventListener('click', () => _sendCalibrationStep('bent'));
+    _captureOpenButton?.addEventListener('click', () => _sendCalibrationStep('open'));
+    _cancelCalibrationButton?.addEventListener('click', () => _sendCalibrationStep('cancel'));
     _applyCalibrationButton?.addEventListener('click', _applyCalibrationInputs);
 
     const ipInput  = document.getElementById('esp-ip-input');
@@ -399,6 +431,7 @@ const Diagnostics = (() => {
       }
     }
 
+    _showCalibrationAction('idle');
     _setCalibrationSteps('idle');
     _syncCalibrationInputs(ESP32.lastState, { force: true });
   }
