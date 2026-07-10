@@ -20,6 +20,8 @@ const MidiPlayer = (() => {
   let _ctx = null;
   let _masterGain = null;
   let _volume = parseFloat(localStorage.getItem('volume') || '0.8');
+  let _tempo = parseFloat(localStorage.getItem('tempo') || '0.7');
+  let _activeAudio = null;
 
   function _ensureCtx() {
     if (_ctx) return;
@@ -244,15 +246,26 @@ const MidiPlayer = (() => {
     let _offsetMs = startAt;
     let _raf = null;
     let _noteIndex = song.notes.findIndex(n => n.time >= startAt);
+    const audio = song.audioUrl ? new Audio(song.audioUrl) : null;
+    if (audio) {
+      audio.preload = 'auto';
+      audio.volume = _volume;
+      audio.playbackRate = _tempo;
+      audio.currentTime = startAt / 1000;
+      audio.play().catch(() => {});
+      _activeAudio = audio;
+    }
     if (_noteIndex < 0) _noteIndex = song.notes.length;
 
     function tick() {
       if (_paused || _stopped) return;
-      const elapsed = (performance.now() - _startWallTime) + _offsetMs;
+      const elapsed = audio
+        ? audio.currentTime * 1000
+        : (performance.now() - _startWallTime) * _tempo + _offsetMs;
 
       while (_noteIndex < song.notes.length && song.notes[_noteIndex].time <= elapsed) {
         const n = song.notes[_noteIndex];
-        _playNote(n.note, n.velocity, n.duration);
+        if (!audio) _playNote(n.note, n.velocity, n.duration / _tempo);
         if (onNote) onNote(n, elapsed);
         _noteIndex++;
       }
@@ -272,13 +285,15 @@ const MidiPlayer = (() => {
       pause() {
         if (_paused || _stopped) return;
         _paused = true;
-        _offsetMs += performance.now() - _startWallTime;
+        _offsetMs += (performance.now() - _startWallTime) * _tempo;
+        if (audio) audio.pause();
         cancelAnimationFrame(_raf);
       },
       resume() {
         if (!_paused || _stopped) return;
         _paused = false;
         _startWallTime = performance.now();
+        if (audio) audio.play().catch(() => {});
         _raf = requestAnimationFrame(tick);
       },
       stop() {
@@ -294,9 +309,12 @@ const MidiPlayer = (() => {
     _volume = v;
     localStorage.setItem('volume', v);
     if (_masterGain) _masterGain.gain.value = v;
+    if (_activeAudio) _activeAudio.volume = v;
   }
   function getVolume() { return _volume; }
+  function setTempo(v) { _tempo = Math.max(0.5, Math.min(1, Number(v) || 0.7)); localStorage.setItem('tempo', _tempo); if (_activeAudio) _activeAudio.playbackRate = _tempo; }
+  function getTempo() { return _tempo; }
   function resumeCtx() { _ensureCtx(); if (_ctx.state === 'suspended') _ctx.resume(); }
 
-  return { loadFile, loadUrl, play, noteOn, setVolume, getVolume, resumeCtx, assignSongPitchLanes: _assignSongPitchLanes };
+  return { loadFile, loadUrl, play, noteOn, setVolume, getVolume, setTempo, getTempo, resumeCtx, assignSongPitchLanes: _assignSongPitchLanes };
 })();
