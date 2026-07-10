@@ -1,0 +1,417 @@
+/**
+ * app.js — Screen router, home screen live preview, settings, song list
+ *
+ * Screen IDs: home | songs | game | diag | settings
+ * Navigation is hash-based but fully managed here (no page reloads).
+ */
+
+const App = (() => {
+  // ── Built-in song catalogue (MIDI files in assets/midi/) ──
+  const BUILT_IN_SONGS = [
+    { name: 'Harry Potter Theme', file: 'assets/midi/potter.mid', emoji: '🧙' },
+  ];
+
+  let _currentScreen = 'home';
+  let _loadedSong    = null;
+  let _customSongs   = []; // user-uploaded via file picker
+
+  // ── Screen switching ──────────────────────────────────────
+  function showScreen(id) {
+    // Leave hooks
+    if (_currentScreen === 'diag')     Diagnostics.leave();
+    if (_currentScreen === 'game')     Game.pause();
+
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(`screen-${id}`)?.classList.add('active');
+    _currentScreen = id;
+
+    // Enter hooks
+    if (id === 'diag') Diagnostics.enter();
+    if (id === 'game' && _loadedSong) {
+      // show overlay first
+      _showGameOverlay('Готов?', `Песня: ${_loadedSong.name}`, 'Поехали!', () => {
+        Game.start(_loadedSong);
+      });
+    }
+  }
+
+  // ── Home screen live sensor bars ─────────────────────────
+  function _initHomePreview() {
+    const fills = [
+      document.getElementById('hp-f0'),
+      document.getElementById('hp-f1'),
+      document.getElementById('hp-f2'),
+    ];
+    const dot   = document.getElementById('esp-dot');
+    const label = document.getElementById('esp-status-label');
+    const MAX   = 4095;
+
+    ESP32.onData((sensors, status) => {
+      const vals = [sensors.keyPinch, sensors.indexThumb, sensors.middleThumb];
+      vals.forEach((v, i) => {
+        if (fills[i]) fills[i].style.width = (v / MAX * 100).toFixed(1) + '%';
+      });
+
+      dot.className   = 'esp-dot' + (status === 'connected' ? ' connected' : status === 'error' ? ' error' : '');
+      label.textContent = status === 'connected' ? 'Перчатка подключена'
+                        : status === 'error'     ? 'ESP32 недоступен — проверьте Wi-Fi'
+                        :                          'Подключение…';
+      const debug = `${ESP32.lastUrl}${ESP32.lastError ? ` | ${ESP32.lastError}` : ''}`;
+      label.title = debug;
+      label.textContent = status === 'connected' ? `ESP32 connected: ${ESP32.ip}`
+                        : status === 'error'     ? `ESP32 error: ${debug}`
+                        :                          `Connecting: ${ESP32.ip}`;
+    });
+  }
+
+  // ── Song list screen ──────────────────────────────────────
+  function _buildSongList() {
+    const container = document.getElementById('song-list');
+    if (!container) return;
+
+    function _renderList() {
+      container.innerHTML = '';
+
+      const all = [
+        ...BUILT_IN_SONGS,
+        ...(_customSongs.map(s => ({ name: s.name, _song: s, emoji: '🎵' }))),
+      ];
+
+      // Upload button
+      const uploadCard = document.createElement('label');
+      uploadCard.className = 'song-card';
+      uploadCard.style.cursor = 'pointer';
+      uploadCard.innerHTML = `
+        <div class="song-thumb" style="background:#232840">➕</div>
+        <div class="song-info">
+          <div class="song-title">Загрузить MIDI файл</div>
+          <div class="song-meta">.mid / .midi</div>
+        </div>
+        <input type="file" accept=".mid,.midi" style="display:none" id="midi-upload-input" />
+      `;
+      uploadCard.querySelector('input').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        try {
+          const song = await MidiPlayer.loadFile(file);
+          _customSongs.push(song);
+          _renderList();
+        } catch (err) {
+          alert('Ошибка загрузки MIDI: ' + err.message);
+        }
+        e.target.value = '';
+      });
+      container.appendChild(uploadCard);
+
+      all.forEach(entry => {
+        const card = document.createElement('div');
+        card.className = 'song-card';
+        const noteCount = entry._song
+          ? entry._song.notes.filter(n => n.lane !== null).length
+          : '…';
+        const dur = entry._song
+          ? Math.ceil(entry._song.durationMs / 1000) + 's'
+          : '';
+        card.innerHTML = `
+          <div class="song-thumb">${entry.emoji}</div>
+          <div class="song-info">
+            <div class="song-title">${entry.name}</div>
+            <div class="song-meta">${entry._song ? `${noteCount} нот · ${dur}` : 'Встроенная'}</div>
+          </div>
+          <span class="song-arrow">›</span>
+        `;
+
+        card.addEventListener('click', async () => {
+          if (entry._song) {
+            _loadedSong = entry._song;
+            showScreen('game');
+          } else {
+            // Load built-in
+            try {
+              card.querySelector('.song-arrow').textContent = '…';
+              const song = await MidiPlayer.loadUrl(entry.file);
+              entry._song = song;
+              entry.name  = song.name;
+              _loadedSong = song;
+              _renderList();
+              showScreen('game');
+            } catch (err) {
+              alert('Не удалось загрузить: ' + err.message);
+              card.querySelector('.song-arrow').textContent = '›';
+            }
+          }
+        });
+
+        container.appendChild(card);
+      });
+    }
+
+    _renderList();
+  }
+
+  // ── Game overlay ──────────────────────────────────────────
+  function _showGameOverlay(title, sub, btnText, onBtn) {
+    const overlay = document.getElementById('game-overlay');
+    const oTitle  = document.getElementById('overlay-title');
+    const oSub    = document.getElementById('overlay-sub');
+    const oBtn    = document.getElementById('overlay-btn');
+
+    oTitle.textContent = title;
+    oSub.textContent   = sub;
+    oBtn.textContent   = btnText;
+    overlay.classList.remove('hidden');
+
+    const handler = () => {
+      overlay.classList.add('hidden');
+      oBtn.removeEventListener('click', handler);
+      if (onBtn) onBtn();
+    };
+    oBtn.addEventListener('click', handler);
+  }
+
+  // ── Game HUD updates ──────────────────────────────────────
+  function _bindGameHud() {
+    const scoreEl = document.getElementById('hud-score');
+    const comboEl = document.getElementById('hud-combo');
+    const nameEl  = document.getElementById('hud-song-name');
+
+    Game.onScoreChange(({ score, combo }) => {
+      scoreEl.textContent = score.toLocaleString();
+      comboEl.textContent = combo > 1 ? `x${combo}` : '';
+    });
+
+    Game.onEnd(({ score }) => {
+      _showGameOverlay(
+        '🎉 Готово!',
+        `Счёт: ${score.toLocaleString()}`,
+        'Сыграть ещё',
+        () => {
+          if (_loadedSong) Game.start(_loadedSong);
+        }
+      );
+    });
+  }
+
+  // ── Settings screen ───────────────────────────────────────
+  function _bindSettings() {
+    const espIp      = document.getElementById('settings-esp-ip');
+    const pollInput  = document.getElementById('settings-poll');
+    const speedInput = document.getElementById('settings-speed');
+    const speedVal   = document.getElementById('settings-speed-val');
+    const winInput   = document.getElementById('settings-window');
+    const winVal     = document.getElementById('settings-window-val');
+    const volInput   = document.getElementById('settings-vol');
+    const volVal     = document.getElementById('settings-vol-val');
+    const saveBtn    = document.getElementById('settings-save');
+
+    if (!espIp) return;
+
+    const readBoundedNumber = (input, min, max, fallback) => {
+      const text = String(input.value || '').trim();
+      const numeric = /^\d+$/.test(text) ? parseInt(text, 10) : NaN;
+      const value = Number.isFinite(numeric)
+        ? Math.max(min, Math.min(max, numeric))
+        : fallback;
+      input.value = value;
+      input.classList.remove('input-error');
+      return value;
+    };
+
+    const markBoundedNumber = (input, min, max) => {
+      const text = String(input.value || '').trim();
+      const numeric = /^\d+$/.test(text) ? parseInt(text, 10) : NaN;
+      const valid = Number.isFinite(numeric) && numeric >= min && numeric <= max;
+      input.classList.toggle('input-error', !valid);
+      return valid;
+    };
+
+    // Load current values
+    espIp.value      = ESP32.ip;
+    pollInput.value  = ESP32.pollInterval;
+    speedInput.value = Game.getSpeed();
+    speedVal.textContent = Game.getSpeed() + ' px/s';
+    winInput.value   = Game.getWindow();
+    winVal.textContent   = Game.getWindow();
+    volInput.value   = Math.round(MidiPlayer.getVolume() * 100);
+    volVal.textContent   = Math.round(MidiPlayer.getVolume() * 100) + '%';
+
+    speedInput.addEventListener('input', () => {
+      markBoundedNumber(speedInput, 100, 600);
+      speedVal.textContent = speedInput.value + ' px/s';
+    });
+    winInput.addEventListener('input',   () => {
+      markBoundedNumber(winInput, 80, 400);
+      winVal.textContent   = winInput.value;
+    });
+    volInput.addEventListener('input',   () => {
+      markBoundedNumber(volInput, 0, 100);
+      volVal.textContent   = volInput.value + '%';
+    });
+
+    saveBtn.addEventListener('click', () => {
+      const speed = readBoundedNumber(speedInput, 100, 600, Game.getSpeed());
+      const hitWindow = readBoundedNumber(winInput, 80, 400, Game.getWindow());
+      const volume = readBoundedNumber(volInput, 0, 100, Math.round(MidiPlayer.getVolume() * 100));
+
+      ESP32.setIP(espIp.value.trim());
+      ESP32.setPollInterval(parseInt(pollInput.value, 10));
+      Game.setSpeed(speed);
+      Game.setWindow(hitWindow);
+      MidiPlayer.setVolume(volume / 100);
+      speedVal.textContent = speed + ' px/s';
+      winVal.textContent = hitWindow;
+      volVal.textContent = volume + '%';
+
+      // Also sync diag IP input
+      const diagIp = document.getElementById('esp-ip-input');
+      if (diagIp) diagIp.value = espIp.value.trim();
+
+      saveBtn.textContent = '✓ Сохранено';
+      setTimeout(() => { saveBtn.textContent = 'Сохранить'; }, 1500);
+    });
+  }
+
+  // ── Wire navigation buttons ───────────────────────────────
+  function _wireNav() {
+    const nav = (btnId, target) => {
+      const el = document.getElementById(btnId);
+      if (el) el.addEventListener('click', () => showScreen(target));
+    };
+
+    nav('btn-play',      'songs');
+    nav('btn-diag',      'diag');
+    nav('btn-settings',  'settings');
+    nav('songs-back',    'home');
+    nav('game-back',     'home');
+    nav('diag-back',     'home');
+    nav('settings-back', 'home');
+
+    // Game back — also stop game
+    document.getElementById('game-back')?.addEventListener('click', () => {
+      Game.stop();
+      showScreen('home');
+    });
+  }
+
+  function _wireDebugKeys() {
+    const fingerKeyMap = {
+      KeyA: { index: 0, label: 'Большой' },
+      KeyS: { index: 1, label: 'Указательный' },
+      KeyD: { index: 2, label: 'Средний' },
+    };
+
+    const comboByKey = {
+      '1': { bits: [1,1,0], label: '1. Указательный + большой' },
+      '2': { bits: [1,0,0], label: '2. Только большой' },
+      '3': { bits: [0,1,0], label: '3. Только указательный' },
+      '4': { bits: [0,1,1], label: '4. Указательный + средний' },
+      '8': { bits: [1,1,1], label: '8. Указательный + средний + большой' },
+      '0': { bits: [0,0,0], label: 'Открытая рука' },
+    };
+
+    const comboByCode = {
+      Digit0: comboByKey['0'],
+      Digit1: comboByKey['1'],
+      Digit2: comboByKey['2'],
+      Digit3: comboByKey['3'],
+      Digit4: comboByKey['4'],
+      Digit8: comboByKey['8'],
+      Numpad0: comboByKey['0'],
+      Numpad1: comboByKey['1'],
+      Numpad2: comboByKey['2'],
+      Numpad3: comboByKey['3'],
+      Numpad4: comboByKey['4'],
+      Numpad8: comboByKey['8'],
+    };
+
+    const heldFingerBits = [0, 0, 0];
+    const heldCombos = new Map();
+
+    const makeValues = (bits) => ({
+      keyPinch:    bits[0] ? 50 : 3600,
+      indexThumb:  bits[1] ? 50 : 3600,
+      middleThumb: bits[2] ? 50 : 3600,
+    });
+
+    const isTypingTarget = (target) =>
+      target && (target.isContentEditable || ['INPUT','TEXTAREA','SELECT'].includes(target.tagName));
+
+    const getComboEntry = (event) => comboByCode[event.code] || comboByKey[event.key];
+
+    const currentKeyboardBits = () => {
+      const activeCombos = Array.from(heldCombos.values());
+      return activeCombos.length ? activeCombos[activeCombos.length - 1].bits : heldFingerBits;
+    };
+
+    const emitKeyboardSensors = () => {
+      ESP32.injectSensors(makeValues(currentKeyboardBits()));
+    };
+
+    document.addEventListener('keydown', (event) => {
+      if (isTypingTarget(event.target)) return;
+
+      const comboEntry = getComboEntry(event);
+      if (comboEntry) {
+        if (event.repeat && heldCombos.has(event.code)) return;
+        event.preventDefault();
+        heldCombos.set(event.code, comboEntry);
+        emitKeyboardSensors();
+        MidiPlayer.resumeCtx();
+        console.debug(`Keyboard gesture: ${comboEntry.label}`, comboEntry.bits);
+        return;
+      }
+
+      const fingerEntry = fingerKeyMap[event.code];
+      if (!fingerEntry || event.repeat) return;
+      event.preventDefault();
+      heldFingerBits[fingerEntry.index] = 1;
+      emitKeyboardSensors();
+      MidiPlayer.resumeCtx();
+      console.debug(`Keyboard finger: ${fingerEntry.label}`, heldFingerBits);
+    });
+
+    document.addEventListener('keyup', (event) => {
+      if (isTypingTarget(event.target)) return;
+
+      const comboEntry = getComboEntry(event);
+      if (comboEntry) {
+        event.preventDefault();
+        heldCombos.delete(event.code);
+        emitKeyboardSensors();
+        return;
+      }
+
+      const fingerEntry = fingerKeyMap[event.code];
+      if (!fingerEntry) return;
+      event.preventDefault();
+      heldFingerBits[fingerEntry.index] = 0;
+      emitKeyboardSensors();
+    });
+  }
+
+  // ── Boot ──────────────────────────────────────────────────
+  function init() {
+    // Init all modules
+    Diagnostics.init();
+    Game.init();
+
+    _initHomePreview();
+    _buildSongList();
+    _bindGameHud();
+    _bindSettings();
+    _wireNav();
+    _wireDebugKeys();
+
+    // Start ESP32 polling
+    ESP32.start();
+
+    // Unlock AudioContext on first interaction
+    document.addEventListener('click', () => MidiPlayer.resumeCtx(), { once: true });
+
+    showScreen('home');
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+
+  return { showScreen };
+})();

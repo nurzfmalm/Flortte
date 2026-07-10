@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flortte — Glove Piano</title>
+  <link rel="stylesheet" href="style.css?v=esp-proxy-20260709-4" />
+</head>
+<body>
+
+  <!-- ═══════════════════════════════ SCREENS ═══════════════════════════════ -->
+
+  <!-- HOME -->
+  <div id="screen-home" class="screen active">
+    <div class="home-bg">
+      <div class="home-orb orb-1"></div>
+      <div class="home-orb orb-2"></div>
+      <div class="home-orb orb-3"></div>
+    </div>
+    <div class="home-content">
+      <div class="home-logo">
+        <span class="logo-f">F</span><span class="logo-rest">lortte</span>
+      </div>
+      <p class="home-sub">Glove Piano</p>
+
+      <div class="gesture-preview">
+        <div class="gp-sensor" id="hp-s0">
+          <span class="gp-label">БОЛЬШОЙ</span>
+          <div class="gp-bar"><div class="gp-fill" id="hp-f0"></div></div>
+        </div>
+        <div class="gp-sensor" id="hp-s1">
+          <span class="gp-label">УКАЗАТЕЛЬНЫЙ</span>
+          <div class="gp-bar"><div class="gp-fill" id="hp-f1"></div></div>
+        </div>
+        <div class="gp-sensor" id="hp-s2">
+          <span class="gp-label">СРЕДНИЙ</span>
+          <div class="gp-bar"><div class="gp-fill" id="hp-f2"></div></div>
+        </div>
+      </div>
+
+      <div class="esp-status-row">
+        <div class="esp-dot" id="esp-dot"></div>
+        <span id="esp-status-label">Подключение…</span>
+      </div>
+
+      <div class="home-actions">
+        <button class="btn-primary" id="btn-play">▶ Играть</button>
+        <button class="btn-secondary" id="btn-diag">⊞ Диагностика</button>
+        <button class="btn-ghost" id="btn-settings">⚙ Настройки</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SONG SELECT -->
+  <div id="screen-songs" class="screen">
+    <div class="screen-header">
+      <button class="btn-back" id="songs-back">← Назад</button>
+      <h2>Выбор песни</h2>
+    </div>
+    <div class="song-list" id="song-list">
+      <!-- populated by app.js -->
+    </div>
+  </div>
+
+  <!-- GAME -->
+  <div id="screen-game" class="screen">
+    <div class="game-hud">
+      <button class="btn-back small" id="game-back">✕</button>
+      <div class="hud-song-name" id="hud-song-name">—</div>
+      <div class="hud-score-wrap">
+        <span class="hud-score-label">ОЧКИ</span>
+        <span class="hud-score" id="hud-score">0</span>
+      </div>
+      <div class="hud-combo-wrap">
+        <span class="hud-combo" id="hud-combo"></span>
+      </div>
+    </div>
+
+    <div class="game-assist" id="game-assist">
+      <div class="game-next" id="game-next">
+        <div class="game-assist-title">НУЖЕН ЖЕСТ</div>
+        <div class="game-next-main">
+          <span class="game-next-emoji" id="game-next-emoji">—</span>
+          <div class="game-next-copy">
+            <span class="game-next-name" id="game-next-name">Ждите ноту</span>
+            <span class="game-next-meta" id="game-next-meta">—</span>
+          </div>
+        </div>
+        <div class="game-finger-recipe" id="game-finger-recipe">
+          <span class="game-finger-chip" data-finger="0">Б</span>
+          <span class="game-finger-chip" data-finger="1">У</span>
+          <span class="game-finger-chip" data-finger="2">С</span>
+        </div>
+      </div>
+
+      <div class="game-live">
+        <div class="game-assist-title">ПАЛЬЦЫ</div>
+        <div class="game-current" id="game-current-gesture">Открытая рука</div>
+        <div class="game-finger-values">
+          <div class="game-finger-meter" data-finger="0">
+            <span class="game-finger-label">Большой</span>
+            <span class="game-finger-value" id="game-finger-value-0">—</span>
+            <div class="game-finger-bar"><div class="game-finger-fill" id="game-finger-fill-0"></div></div>
+          </div>
+          <div class="game-finger-meter" data-finger="1">
+            <span class="game-finger-label">Указательный</span>
+            <span class="game-finger-value" id="game-finger-value-1">—</span>
+            <div class="game-finger-bar"><div class="game-finger-fill" id="game-finger-fill-1"></div></div>
+          </div>
+          <div class="game-finger-meter" data-finger="2">
+            <span class="game-finger-label">Средний</span>
+            <span class="game-finger-value" id="game-finger-value-2">—</span>
+            <div class="game-finger-bar"><div class="game-finger-fill" id="game-finger-fill-2"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <canvas id="game-canvas"></canvas>
+
+    <div class="piano-row" id="piano-row">
+      <!-- 5 one-hand gesture lanes -->
+      <div class="lane-key" data-lane="0">
+        <span class="lane-gesture-icon" id="lane-icon-0">1</span>
+        <span class="lane-label">1. УКАЗ+БОЛЬШ</span>
+      </div>
+      <div class="lane-key" data-lane="1">
+        <span class="lane-gesture-icon" id="lane-icon-1">2</span>
+        <span class="lane-label">2. БОЛЬШОЙ</span>
+      </div>
+      <div class="lane-key" data-lane="2">
+        <span class="lane-gesture-icon" id="lane-icon-2">3</span>
+        <span class="lane-label">3. УКАЗАТЕЛЬНЫЙ</span>
+      </div>
+      <div class="lane-key" data-lane="3">
+        <span class="lane-gesture-icon" id="lane-icon-3">4</span>
+        <span class="lane-label">4. УКАЗ+СРЕД</span>
+      </div>
+      <div class="lane-key" data-lane="4">
+        <span class="lane-gesture-icon" id="lane-icon-4">8</span>
+        <span class="lane-label">8. ТРИ ПАЛЬЦА</span>
+      </div>
+    </div>
+
+    <div class="game-overlay hidden" id="game-overlay">
+      <div class="overlay-card">
+        <div class="overlay-title" id="overlay-title">Готов?</div>
+        <div class="overlay-sub" id="overlay-sub"></div>
+        <button class="btn-primary" id="overlay-btn">Начать</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DIAGNOSTICS -->
+  <div id="screen-diag" class="screen">
+    <div class="screen-header">
+      <button class="btn-back" id="diag-back">← Назад</button>
+      <h2>Диагностика</h2>
+      <div class="diag-status" id="diag-status-dot"></div>
+    </div>
+
+    <div class="diag-body">
+      <div class="diag-cards">
+        <div class="diag-card" id="dc-0">
+          <div class="dc-label">БОЛЬШОЙ</div>
+          <div class="dc-value" id="dcv-0">—</div>
+          <div class="dc-bar"><div class="dc-fill" id="dcf-0"></div></div>
+          <div class="dc-gesture" id="dcg-0"></div>
+        </div>
+        <div class="diag-card" id="dc-1">
+          <div class="dc-label">УКАЗАТЕЛЬНЫЙ</div>
+          <div class="dc-value" id="dcv-1">—</div>
+          <div class="dc-bar"><div class="dc-fill" id="dcf-1"></div></div>
+          <div class="dc-gesture" id="dcg-1"></div>
+        </div>
+        <div class="diag-card" id="dc-2">
+          <div class="dc-label">СРЕДНИЙ</div>
+          <div class="dc-value" id="dcv-2">—</div>
+          <div class="dc-bar"><div class="dc-fill" id="dcf-2"></div></div>
+          <div class="dc-gesture" id="dcg-2"></div>
+        </div>
+      </div>
+
+      <div class="diag-detected">
+        <span class="dd-label">Жест:</span>
+        <span class="dd-value" id="dd-gesture">—</span>
+        <span class="dd-note" id="dd-note"></span>
+      </div>
+
+      <canvas id="diag-canvas"></canvas>
+
+      <div class="diag-controls">
+        <div class="calibration-panel" id="calibration-panel">
+          <div class="calibration-header">
+            <div>
+              <div class="threshold-title">Калибровка перчатки</div>
+              <div class="calibration-status" id="calibration-status">Готово к запуску</div>
+            </div>
+            <button class="btn-secondary small" id="btn-calibrate">Калибровать</button>
+          </div>
+          <ol class="calibration-steps" id="calibration-steps">
+            <li data-step="prepare" class="active">Нажмите «Калибровать» и откройте Serial Monitor для подсказок ESP32.</li>
+            <li data-step="move">Для подключенных пальцев сохраните максимум сгиба и прямое положение кнопкой BOOT; если пальца нет, сохраните два одинаковых положения.</li>
+            <li data-step="tune">Когда появится результат, проверьте числа ниже и поправьте их вручную при необходимости.</li>
+          </ol>
+          <div class="calibration-grid">
+            <div class="calibration-cell">
+              <div class="calibration-finger">Большой</div>
+              <label><span>Открыт</span><input type="text" inputmode="numeric" id="cal-open-0" value="—" /></label>
+              <label><span>Согнут</span><input type="text" inputmode="numeric" id="cal-bent-0" value="—" /></label>
+            </div>
+            <div class="calibration-cell">
+              <div class="calibration-finger">Указательный</div>
+              <label><span>Открыт</span><input type="text" inputmode="numeric" id="cal-open-1" value="—" /></label>
+              <label><span>Согнут</span><input type="text" inputmode="numeric" id="cal-bent-1" value="—" /></label>
+            </div>
+            <div class="calibration-cell">
+              <div class="calibration-finger">Средний</div>
+              <label><span>Открыт</span><input type="text" inputmode="numeric" id="cal-open-2" value="—" /></label>
+              <label><span>Согнут</span><input type="text" inputmode="numeric" id="cal-bent-2" value="—" /></label>
+            </div>
+          </div>
+          <button class="btn-ghost small" id="btn-apply-calibration">Применить значения</button>
+        </div>
+        <div class="threshold-controls">
+          <div class="threshold-title">Откалиброванные пороги пальцев</div>
+          <div class="threshold-hint">Сгибание и разгибание задаются числами 0–4095. После калибровки их можно менять вручную.</div>
+          <div class="threshold-row">
+            <div class="threshold-finger">Большой</div>
+            <label>
+              <span>Сгибание</span>
+              <input type="text" inputmode="numeric" pattern="[0-9]*" id="threshold-bend-0" value="600" />
+            </label>
+            <label>
+              <span>Разгибание</span>
+              <input type="text" inputmode="numeric" pattern="[0-9]*" id="threshold-release-0" value="900" />
+            </label>
+          </div>
+          <div class="threshold-row">
+            <div class="threshold-finger">Указательный</div>
+            <label>
+              <span>Сгибание</span>
+              <input type="text" inputmode="numeric" pattern="[0-9]*" id="threshold-bend-1" value="600" />
+            </label>
+            <label>
+              <span>Разгибание</span>
+              <input type="text" inputmode="numeric" pattern="[0-9]*" id="threshold-release-1" value="900" />
+            </label>
+          </div>
+          <div class="threshold-row">
+            <div class="threshold-finger">Средний</div>
+            <label>
+              <span>Сгибание</span>
+              <input type="text" inputmode="numeric" pattern="[0-9]*" id="threshold-bend-2" value="600" />
+            </label>
+            <label>
+              <span>Разгибание</span>
+              <input type="text" inputmode="numeric" pattern="[0-9]*" id="threshold-release-2" value="900" />
+            </label>
+          </div>
+        </div>
+        <label>
+          <span>IP адрес ESP32</span>
+          <input type="text" id="esp-ip-input" value="192.168.4.1" />
+          <button class="btn-ghost small" id="btn-reconnect">Применить</button>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div id="screen-settings" class="screen">
+    <div class="screen-header">
+      <button class="btn-back" id="settings-back">← Назад</button>
+      <h2>Настройки</h2>
+    </div>
+    <div class="settings-body">
+      <div class="setting-group">
+        <h3>ESP32</h3>
+        <label>
+          <span>IP адрес</span>
+          <input type="text" id="settings-esp-ip" value="192.168.4.1" />
+        </label>
+        <label>
+          <span>Интервал опроса (мс)</span>
+          <input type="number" id="settings-poll" min="300" max="2000" value="600" />
+        </label>
+      </div>
+      <div class="setting-group">
+        <h3>Игра</h3>
+        <label>
+          <span>Скорость нот</span>
+          <input type="text" inputmode="numeric" pattern="[0-9]*" id="settings-speed" value="300" />
+          <span id="settings-speed-val">300 px/s</span>
+        </label>
+        <label>
+          <span>Окно попадания (мс)</span>
+          <input type="text" inputmode="numeric" pattern="[0-9]*" id="settings-window" value="240" />
+          <span id="settings-window-val">240</span>
+        </label>
+        <label>
+          <span>Громкость</span>
+          <input type="text" inputmode="numeric" pattern="[0-9]*" id="settings-vol" value="80" />
+          <span id="settings-vol-val">80%</span>
+        </label>
+      </div>
+      <div class="setting-group">
+        <h3>Маппинг жестов</h3>
+        <p class="setting-hint">Сгибание включает палец при низком значении сенсора, разгибание отпускает палец при высоком значении. В игре реальные MIDI-ноты песни распределяются по лейнам от низких к высоким.</p>
+        <div class="gesture-map-table">
+          <div class="gmt-row header">
+            <span>Жест</span><span>Лейн</span><span>Высота в песне</span><span>Клавиши</span>
+          </div>
+          <div class="gmt-row"><span>1. Указательный + большой</span><span>0</span><span>самые низкие</span><span>A+S / 1</span></div>
+          <div class="gmt-row"><span>2. Только большой</span><span>1</span><span>низкие</span><span>A / 2</span></div>
+          <div class="gmt-row"><span>3. Только указательный</span><span>2</span><span>средние</span><span>S / 3</span></div>
+          <div class="gmt-row"><span>4. Указательный + средний</span><span>3</span><span>высокие</span><span>S+D / 4</span></div>
+          <div class="gmt-row"><span>8. Указательный + средний + большой</span><span>4</span><span>самые высокие</span><span>A+S+D / 8</span></div>
+        </div>
+      </div>
+      <button class="btn-primary" id="settings-save">Сохранить</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════ SCRIPTS ═══════════════════════════════ -->
+  <script src="js/esp32.js?v=esp-proxy-20260709-4"></script>
+  <script src="js/gestures.js?v=esp-proxy-20260709-4"></script>
+  <script src="js/midi.js?v=esp-proxy-20260709-4"></script>
+  <script src="js/diagnostics.js?v=esp-proxy-20260709-4"></script>
+  <script src="js/game.js?v=esp-proxy-20260709-4"></script>
+  <script src="js/app.js?v=esp-proxy-20260709-4"></script>
+</body>
+</html>
