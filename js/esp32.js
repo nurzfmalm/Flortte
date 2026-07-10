@@ -250,14 +250,16 @@ const ESP32 = (() => {
     if (_timerId) { stop(); start(); }
   }
 
-  async function calibrate() {
+  async function calibrate(action = 'start') {
     _lastState = { ..._lastState, calibrating: true };
     _emit();
 
     try {
       const data = await _fetchTarget(_ip, 'calibrate', {
         method: 'POST',
-        timeoutMs: 180000,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ action }),
+        timeoutMs: 15000,
       });
       _applyState(data);
       _consecutiveErrors = 0;

@@ -196,13 +196,18 @@
               <div class="threshold-title">Калибровка перчатки</div>
               <div class="calibration-status" id="calibration-status">Готово к запуску</div>
             </div>
-            <button class="btn-secondary small" id="btn-calibrate">Калибровать</button>
+            <button class="btn-secondary small" id="btn-calibrate">Начать</button>
           </div>
           <ol class="calibration-steps" id="calibration-steps">
-            <li data-step="prepare" class="active">Нажмите «Калибровать» и откройте Serial Monitor для подсказок ESP32.</li>
-            <li data-step="move">Для подключенных пальцев сохраните максимум сгиба и прямое положение кнопкой BOOT; если пальца нет, сохраните два одинаковых положения.</li>
-            <li data-step="tune">Когда появится результат, проверьте числа ниже и поправьте их вручную при необходимости.</li>
+            <li data-step="prepare" class="active">Нажмите «Начать». Согните все подключенные пальцы до максимума.</li>
+            <li data-step="move">Нажмите «Сохранить сгиб». Затем полностью выпрямите пальцы.</li>
+            <li data-step="tune">Нажмите «Сохранить прямое положение». Проверьте полученные значения.</li>
           </ol>
+          <div class="calibration-actions">
+            <button class="btn-primary small" id="btn-capture-bent" hidden>Сохранить сгиб</button>
+            <button class="btn-primary small" id="btn-capture-open" hidden>Сохранить прямое положение</button>
+            <button class="btn-ghost small" id="btn-cancel-calibration" hidden>Отмена</button>
+          </div>
           <div class="calibration-grid">
             <div class="calibration-cell">
               <div class="calibration-finger">Большой</div>
