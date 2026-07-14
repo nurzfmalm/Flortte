@@ -1,6 +1,6 @@
 # Flortte
 
-Flortte is an offline Windows app for a five-finger ESP32 piano glove. The app reads the glove over Bluetooth Low Energy, plays local MIDI files and runs without internet access after installation.
+Flortte is an offline Windows app for a five-finger ESP32 piano glove. The app reads the glove over Bluetooth Low Energy, plays local MIDI files and runs without internet access after installation. The game uses nine supported hand gestures, each with its own reference image.
 
 ## Run locally
 

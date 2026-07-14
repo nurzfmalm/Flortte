@@ -1,7 +1,7 @@
 /**
  * game.js — Synthesia/Midiano-style falling note game engine
  *
- * 7 lanes matching the 7 one-hand gesture combinations.
+ * Dynamic lanes matching the image-backed one-hand gesture combinations.
  * Notes scroll downward; player performs gesture when note hits the hit zone.
  * Notes with lane=null are played automatically (background harmony).
  *
@@ -15,8 +15,8 @@
  */
 
 const Game = (() => {
-  const FALLBACK_COLORS = ['#7c3aed', '#22d3a0', '#f59e0b', '#38bdf8', '#f472b6', '#fb7185', '#8b5cf6'];
-  const FALLBACK_GLOWS  = ['#a855f7', '#34d399', '#fbbf24', '#7dd3fc', '#f9a8d4', '#fda4af', '#a78bfa'];
+  const FALLBACK_COLORS = ['#7c3aed', '#22d3a0', '#f59e0b', '#38bdf8', '#f472b6', '#fb7185', '#8b5cf6', '#14b8a6', '#ec4899'];
+  const FALLBACK_GLOWS  = ['#a855f7', '#34d399', '#fbbf24', '#7dd3fc', '#f9a8d4', '#fda4af', '#a78bfa', '#5eead4', '#f9a8d4'];
   const HIT_ZONE_Y   = 0.82;   // fraction from top
   const NOTE_W_FRAC  = 0.78;   // note width as fraction of lane width
   const NOTE_H       = 28;     // px (logical)
@@ -43,7 +43,7 @@ const Game = (() => {
   let _endListeners   = [];
 
   // Gesture state
-  let _lastGestureId = 'open';
+  let _lastGestureId = 'unsupported';
   let _forgivingArmed = true;
 
   // Hit feedback flashes: { lane, t, label }
