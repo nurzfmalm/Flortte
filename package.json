@@ -9,7 +9,7 @@
   "scripts": {
     "start": "electron .",
     "test": "node --check electron/main.js && node --check js/esp32.js && node --check js/gestures.js && node --check js/midi.js && node --check js/diagnostic-metrics.js && node --check js/diagnostics.js && node --check js/glove-settings.js && node --check js/game.js && node --check js/app.js && node test/gestures.test.js && node test/diagnostics.test.js",
-    "build:win": "electron-builder --win nsis --x64"
+    "build:win": "electron-builder --win nsis --x64 --publish never"
   },
   "devDependencies": {
     "electron": "43.1.0",
