@@ -1,28 +1,38 @@
 # Flortte
 
-Flortte is an offline Windows app for a five-finger ESP32 piano glove. The app reads the glove over Bluetooth Low Energy, plays local MIDI files and runs without internet access after installation. The game uses nine supported hand gestures, each with its own reference image.
+Flortte is an offline app for a five-finger ESP32 piano glove. The app reads the glove over Bluetooth Low Energy, plays local MIDI files and runs without internet access after installation. The game uses nine supported hand gestures, each with its own reference image.
 
 ## Run locally
 
-Requirements: Node.js 22 or newer and Windows 10 or 11 with Bluetooth enabled.
+Requirements: Node.js 22 or newer and a computer with Bluetooth enabled.
 
 ```bash
 npm ci
 npm start
 ```
 
-## Build the Windows installer
+## Build installers in GitHub Actions
+
+Open Actions, select `Build installers`, then select `Run workflow`. The workflow produces four downloadable artifacts:
+
+- `Flortte-Windows`, an EXE installer for Windows x64.
+- `Flortte-Android`, an installable debug APK.
+- `Flortte-macOS`, a universal DMG for Intel and Apple silicon Macs.
+- `Flortte-iPhone-unsigned`, an unsigned IPA. Sign it with an Apple Developer certificate before installing it on an iPhone.
+
+The same workflow runs for pull requests to `main` and version tags such as `v1.1.0`.
+
+Local desktop builds:
 
 ```bash
 npm ci
 npm run build:win
+npm run build:mac
 ```
-
-The installer is written to `dist/Flortte-Setup-1.1.0.exe`. GitHub Actions also builds the installer when a version tag such as `v1.1.0` is pushed or when the Windows build workflow is started manually.
 
 ## Application icon
 
-Put the Windows icon at `build/icon.ico`. Electron Builder will use it for the application, installer and shortcuts during the next `npm run build:win` build. Use a square, transparent, multi-resolution ICO containing at least 16, 32, 48, 128 and 256 pixel variants.
+Keep the source icon at `build/icon.ico`. Windows uses it directly. GitHub Actions converts it into the macOS, iPhone and Android icon formats during each build. Use a square, transparent, multi-resolution ICO containing at least 16, 32, 48, 128 and 256 pixel variants.
 
 ## ESP32 glove
 

@@ -1,7 +1,7 @@
 {
   "name": "flortte-windows",
   "version": "1.1.0",
-  "description": "Автономное Windows-приложение для пианино-перчатки Flortte",
+  "description": "Автономное приложение для пианино-перчатки Flortte",
   "main": "electron/main.js",
   "author": "Flortte",
   "license": "MIT",
@@ -9,7 +9,8 @@
   "scripts": {
     "start": "electron .",
     "test": "node --check electron/main.js && node --check js/esp32.js && node --check js/gestures.js && node --check js/midi.js && node --check js/diagnostic-metrics.js && node --check js/diagnostics.js && node --check js/glove-settings.js && node --check js/game.js && node --check js/app.js && node test/gestures.test.js && node test/diagnostics.test.js",
-    "build:win": "electron-builder --win nsis --x64 --publish never"
+    "build:win": "electron-builder --win nsis --x64 --publish never",
+    "build:mac": "electron-builder --mac dmg --universal --publish never"
   },
   "devDependencies": {
     "electron": "43.1.0",
@@ -39,6 +40,12 @@
         }
       ],
       "artifactName": "Flortte-Setup-${version}.${ext}"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "build/icon.icns",
+      "category": "public.app-category.education",
+      "artifactName": "Flortte-${version}-macOS-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,
