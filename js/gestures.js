@@ -5,22 +5,24 @@
  * bend threshold, and stays active until it rises back to the release threshold.
  * Pressed finger = lower ADC reading for this glove wiring.
  *
- * Gesture table (3 sensors: keyPinch=0/thumb, indexThumb=1/index, middleThumb=2/middle):
+ * Gesture table (5 sensors: thumb, index, middle, ring, little):
  *
- *  Pattern  [0,1,2]   Ref              Lane   Role in a song
+ *  Pattern  [0,1,2,3,4]   Ref          Lane   Role in a song
  *  ───────────────────────────────────────────────
- *  [1,1,0]            #1               0      lowest real pitches
- *  [1,0,0]            #2               1      low real pitches
- *  [0,1,0]            #3               2      middle real pitches
- *  [0,1,1]            #4               3      high real pitches
- *  [1,1,1]            #8               4      highest real pitches
- *  [0,0,0]            Open hand        —      —
+ *  [1,1,0,0,0]        #1               0      lowest real pitches
+ *  [1,0,0,0,0]        #2               1      low real pitches
+ *  [0,1,0,0,0]        #3               2      middle real pitches
+ *  [0,1,1,0,0]        #4               3      high real pitches
+ *  [0,0,0,1,0]        #5               4      higher real pitches
+ *  [0,0,0,0,1]        #6               5      still higher real pitches
+ *  [1,1,1,0,0]        #8               6      highest real pitches
+ *  [0,0,0,0,0]        Open hand        —      —
  *
- * Lane (0-4) = the game column. The actual MIDI note is kept on each song note.
+ * Lane (0-6) = the game column. The actual MIDI note is kept on each song note.
  */
 
 const Gestures = (() => {
-  const SENSOR_KEYS = ['keyPinch', 'indexThumb', 'middleThumb'];
+  const SENSOR_KEYS = ['keyPinch', 'indexThumb', 'middleThumb', 'ring', 'little'];
   const MIN_THRESHOLD = 0;
   const MAX_THRESHOLD = 4095;
   const DEFAULT_BEND_THRESHOLD = 600;
@@ -82,13 +84,15 @@ const Gestures = (() => {
   };
 
   const GESTURE_MAP = [
-    // [thumb, index, middle]  name                    lane  diagnostic note  emoji  keyboard
-    { id: 'open',      pattern: [0,0,0], name: 'Открытая рука',                         lane: null, note: null, emoji: '✋', keys: '0' },
-    { id: 'gesture-1', pattern: [1,1,0], name: '1. Указательный + большой',             lane: 0,    note: 60,   emoji: '1', keys: 'A+S / 1', image: 'assets/gestures/gesture-1-thumb-index.png', color: '#7c3aed', glow: '#a855f7' },
-    { id: 'gesture-2', pattern: [1,0,0], name: '2. Только большой',                     lane: 1,    note: 62,   emoji: '2', keys: 'A / 2', image: 'assets/gestures/gesture-2-thumb.png', color: '#22d3a0', glow: '#34d399' },
-    { id: 'gesture-3', pattern: [0,1,0], name: '3. Только указательный',                lane: 2,    note: 64,   emoji: '3', keys: 'S / 3', image: 'assets/gestures/gesture-3-index.png', color: '#f59e0b', glow: '#fbbf24' },
-    { id: 'gesture-4', pattern: [0,1,1], name: '4. Указательный + средний',             lane: 3,    note: 67,   emoji: '4', keys: 'S+D / 4', image: 'assets/gestures/gesture-4-index-middle.png', color: '#38bdf8', glow: '#7dd3fc' },
-    { id: 'gesture-8', pattern: [1,1,1], name: '8. Указательный + средний + большой',   lane: 4,    note: 69,   emoji: '8', keys: 'A+S+D / 8', image: 'assets/gestures/gesture-8-three-side.png', color: '#f472b6', glow: '#f9a8d4' },
+    // [thumb, index, middle, ring, little]  name       lane  diagnostic note  emoji  keyboard
+    { id: 'open',      pattern: [0,0,0,0,0], name: 'Открытая рука',                         lane: null, note: null, emoji: '✋', keys: '0' },
+    { id: 'gesture-1', pattern: [1,1,0,0,0], name: '1. Указательный + большой',             lane: 0,    note: 60,   emoji: '1', keys: 'A+S / 1', image: 'assets/gestures/gesture-1-thumb-index.png', color: '#7c3aed', glow: '#a855f7' },
+    { id: 'gesture-2', pattern: [1,0,0,0,0], name: '2. Только большой',                     lane: 1,    note: 62,   emoji: '2', keys: 'A / 2', image: 'assets/gestures/gesture-2-thumb.png', color: '#22d3a0', glow: '#34d399' },
+    { id: 'gesture-3', pattern: [0,1,0,0,0], name: '3. Только указательный',                lane: 2,    note: 64,   emoji: '3', keys: 'S / 3', image: 'assets/gestures/gesture-3-index.png', color: '#f59e0b', glow: '#fbbf24' },
+    { id: 'gesture-4', pattern: [0,1,1,0,0], name: '4. Указательный + средний',             lane: 3,    note: 65,   emoji: '4', keys: 'S+D / 4', image: 'assets/gestures/gesture-4-index-middle.png', color: '#38bdf8', glow: '#7dd3fc' },
+    { id: 'gesture-5', pattern: [0,0,0,1,0], name: '5. Только безымянный',                  lane: 4,    note: 67,   emoji: '5', keys: 'F / 5', color: '#f472b6', glow: '#f9a8d4' },
+    { id: 'gesture-6', pattern: [0,0,0,0,1], name: '6. Только мизинец',                     lane: 5,    note: 69,   emoji: '6', keys: 'G / 6', color: '#fb7185', glow: '#fda4af' },
+    { id: 'gesture-8', pattern: [1,1,1,0,0], name: '8. Указательный + средний + большой',   lane: 6,    note: 72,   emoji: '8', keys: 'A+S+D / 8', image: 'assets/gestures/gesture-8-three-side.png', color: '#8b5cf6', glow: '#a78bfa' },
   ];
 
   const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
@@ -100,7 +104,7 @@ const Gestures = (() => {
 
   /**
    * Classify current sensor readings into a gesture.
-   * @param {object} sensors  { keyPinch, indexThumb, middleThumb }
+   * @param {object} sensors  readings for all five fingers
    * @returns {{ gesture, lane, note, noteName, emoji, bits }}
    */
   function _sensorActive(name, value) {
@@ -136,14 +140,11 @@ const Gestures = (() => {
   }
 
   function classify(sensors) {
-    const kp = _sensorActive('keyPinch', sensors.keyPinch) ? 1 : 0;
-    const it = _sensorActive('indexThumb', sensors.indexThumb) ? 1 : 0;
-    const mt = _sensorActive('middleThumb', sensors.middleThumb) ? 1 : 0;
-    const bits = [kp, it, mt];
+    const bits = SENSOR_KEYS.map(key => _sensorActive(key, sensors[key]) ? 1 : 0);
 
     let match = bits.every(bit => bit === 0) ? GESTURE_MAP[0] : UNSUPPORTED_GESTURE;
     for (const g of GESTURE_MAP) {
-      if (g.pattern[0] === kp && g.pattern[1] === it && g.pattern[2] === mt) {
+      if (g.pattern.every((bit, index) => bit === bits[index])) {
         match = g; break;
       }
     }

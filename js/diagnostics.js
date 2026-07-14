@@ -26,32 +26,23 @@ const Diagnostics = (() => {
   let _dcv   = [];   // .dc-value spans
   let _dcf   = [];   // .dc-fill divs
   let _dcg   = [];   // .dc-gesture spans
-  let _thresholdInputs = [1000, 1000, 1000];
+  let _thresholdInputs = [];
   let _ddGesture, _ddNote, _statusDot;
-  let _calibrationStatus, _calibrateButton, _applyCalibrationButton;
+  let _calibrationStatus, _calibrateButton;
   let _captureBentButton, _captureOpenButton, _cancelCalibrationButton;
   let _calibrationSteps = [];
-  let _calibrationInputs = [];
   let _isCalibrating = false;
-  let _calibrationDirty = false;
 
   function _grabDom() {
     _dcv = SENSOR_KEYS.map((_, i) => document.getElementById(`dcv-${i}`));
     _dcf = SENSOR_KEYS.map((_, i) => document.getElementById(`dcf-${i}`));
     _dcg = SENSOR_KEYS.map((_, i) => document.getElementById(`dcg-${i}`));
-    _thresholdInputs = [
-      { bend: document.getElementById('threshold-bend-0'), release: document.getElementById('threshold-release-0') },
-      { bend: document.getElementById('threshold-bend-1'), release: document.getElementById('threshold-release-1') },
-      { bend: document.getElementById('threshold-bend-2'), release: document.getElementById('threshold-release-2') },
-    ];
-    _calibrationInputs = [
-      { open: document.getElementById('cal-open-0'), bent: document.getElementById('cal-bent-0') },
-      { open: document.getElementById('cal-open-1'), bent: document.getElementById('cal-bent-1') },
-      { open: document.getElementById('cal-open-2'), bent: document.getElementById('cal-bent-2') },
-    ];
+    _thresholdInputs = SENSOR_KEYS.map((_, index) => ({
+      bend: document.getElementById(`threshold-bend-${index}`),
+      release: document.getElementById(`threshold-release-${index}`),
+    }));
     _calibrationStatus = document.getElementById('calibration-status');
     _calibrateButton = document.getElementById('btn-calibrate');
-    _applyCalibrationButton = document.getElementById('btn-apply-calibration');
     _captureBentButton = document.getElementById('btn-capture-bent');
     _captureOpenButton = document.getElementById('btn-capture-open');
     _cancelCalibrationButton = document.getElementById('btn-cancel-calibration');
@@ -83,10 +74,6 @@ const Diagnostics = (() => {
     if (input) input.classList.toggle('input-error', !valid);
   }
 
-  function _isCalibrationDisabled(values) {
-    return values?.enabled === false;
-  }
-
   function _setCalibrationStatus(text, mode = '') {
     if (!_calibrationStatus) return;
     _calibrationStatus.textContent = text;
@@ -105,27 +92,6 @@ const Diagnostics = (() => {
       const key = step.dataset.step;
       step.classList.toggle('done', state.done.includes(key));
       step.classList.toggle('active', state.active.includes(key));
-    });
-  }
-
-  function _syncCalibrationInputs(state = ESP32.lastState, options = {}) {
-    const calibration = state?.calibration || {};
-    if (_calibrationDirty && !options.force) return;
-
-    SENSOR_KEYS.forEach((key, index) => {
-      const values = calibration[key];
-      const inputs = _calibrationInputs[index];
-      if (!values || !inputs) return;
-      const disabled = _isCalibrationDisabled(values);
-
-      if (inputs.open && (options.force || document.activeElement !== inputs.open)) {
-        inputs.open.value = !disabled && Number.isFinite(Number(values.open)) ? values.open : '—';
-        _markInput(inputs.open, true);
-      }
-      if (inputs.bent && (options.force || document.activeElement !== inputs.bent)) {
-        inputs.bent.value = !disabled && Number.isFinite(Number(values.bent)) ? values.bent : '—';
-        _markInput(inputs.bent, true);
-      }
     });
   }
 
@@ -152,10 +118,9 @@ const Diagnostics = (() => {
 
     // Per-sensor "active" labels
     SENSOR_KEYS.forEach((key, i) => {
-      const active = i < 3 && !!result.bits[i];
-      const disabled = _isCalibrationDisabled(state?.calibration?.[key]);
-      _dcg[i].textContent = disabled ? 'не подключен' : active ? '● АКТИВЕН' : '';
-      _dcg[i].style.color = disabled ? '#6b7280' : active ? COLORS[i] : '';
+      const active = !!result.bits[i];
+      _dcg[i].textContent = active ? '● АКТИВЕН' : '';
+      _dcg[i].style.color = active ? COLORS[i] : '';
     });
 
     // Connection dot
@@ -163,10 +128,7 @@ const Diagnostics = (() => {
       _statusDot.classList.toggle('on', status === 'connected');
     }
 
-    if (state?.calibration) {
-      _syncCalibrationInputs(state);
-    }
-    if (!_isCalibrating && !_calibrationDirty) {
+    if (!_isCalibrating) {
       if (status === 'connected') {
         _setCalibrationStatus('FlortteGlove подключена по Bluetooth', 'done');
       } else if (status === 'error') {
@@ -200,7 +162,7 @@ const Diagnostics = (() => {
     }
 
     // Per-sensor threshold lines
-    SENSOR_KEYS.slice(0, 3).forEach((key, i) => {
+    SENSOR_KEYS.forEach((key, i) => {
       const thresholds = Gestures.getThresholdPair(key);
       const bendY = H * (1 - thresholds.bend / MAX_ADC);
       const releaseY = H * (1 - thresholds.release / MAX_ADC);
@@ -271,7 +233,6 @@ const Diagnostics = (() => {
   async function _sendCalibrationStep(action) {
     if (_isCalibrating && action === 'start') return;
     _isCalibrating = true;
-    _calibrationDirty = false;
 
     const messages = {
       start: 'Согните все подключенные пальцы до максимума.',
@@ -281,8 +242,7 @@ const Diagnostics = (() => {
     };
 
     try {
-      const state = await ESP32.calibrate(action);
-      _syncCalibrationInputs(state, { force: true });
+      await ESP32.calibrate(action);
 
       if (action === 'start') {
         _setCalibrationSteps('running');
@@ -307,47 +267,6 @@ const Diagnostics = (() => {
 
   async function _runCalibration() {
     await _sendCalibrationStep('start');
-  }
-
-  async function _applyCalibrationInputs() {
-    const calibration = {};
-    let valid = true;
-
-    SENSOR_KEYS.forEach((key, index) => {
-      const inputs = _calibrationInputs[index];
-      if (!inputs) return;
-
-      const open = _parseAdcValue(inputs.open?.value);
-      const bent = _parseAdcValue(inputs.bent?.value);
-      const pairSkipped = open === null && bent === null;
-      const pairValid = pairSkipped || (open !== null && bent !== null && Math.abs(open - bent) >= 20);
-
-      _markInput(inputs.open, pairValid);
-      _markInput(inputs.bent, pairValid);
-      if (!pairValid) valid = false;
-      if (pairSkipped) return;
-      calibration[key] = { open, bent };
-    });
-
-    if (!valid) {
-      _setCalibrationStatus('Проверьте значения: заполните обе ячейки пальца или оставьте обе пустыми; заполненная пара должна отличаться минимум на 20.', 'error');
-      return;
-    }
-
-    if (_applyCalibrationButton) _applyCalibrationButton.disabled = true;
-    _setCalibrationStatus('Отправляю значения на ESP32…', 'running');
-
-    try {
-      const state = await ESP32.setCalibration(calibration);
-      _calibrationDirty = false;
-      _syncCalibrationInputs(state, { force: true });
-      _setCalibrationSteps('done');
-      _setCalibrationStatus('Значения применены. Пороги ниже можно менять отдельно.', 'done');
-    } catch (err) {
-      _setCalibrationStatus(`Не удалось применить значения: ${err.message}`, 'error');
-    } finally {
-      if (_applyCalibrationButton) _applyCalibrationButton.disabled = false;
-    }
   }
 
   // ── Threshold text inputs ──────────────────────────────────
@@ -398,23 +317,10 @@ const Diagnostics = (() => {
       });
     });
 
-    _calibrationInputs.forEach((pair) => {
-      ['open', 'bent'].forEach((type) => {
-        const input = pair?.[type];
-        if (!input) return;
-        input.addEventListener('input', () => {
-          _calibrationDirty = true;
-          _markInput(input, _parseAdcValue(input.value) !== null);
-          _setCalibrationStatus('Есть несохраненные изменения калибровки', 'running');
-        });
-      });
-    });
-
     _calibrateButton?.addEventListener('click', _runCalibration);
     _captureBentButton?.addEventListener('click', () => _sendCalibrationStep('bent'));
     _captureOpenButton?.addEventListener('click', () => _sendCalibrationStep('open'));
     _cancelCalibrationButton?.addEventListener('click', () => _sendCalibrationStep('cancel'));
-    _applyCalibrationButton?.addEventListener('click', _applyCalibrationInputs);
 
     const btnRecon = document.getElementById('btn-reconnect');
     btnRecon?.addEventListener('click', async () => {
@@ -426,7 +332,6 @@ const Diagnostics = (() => {
 
     _showCalibrationAction('idle');
     _setCalibrationSteps('idle');
-    _syncCalibrationInputs(ESP32.lastState, { force: true });
   }
 
   // ── Public ────────────────────────────────────────────────
