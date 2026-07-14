@@ -231,7 +231,42 @@
 
       <canvas id="diag-canvas"></canvas>
 
-      <div class="diag-controls">
+      <section class="diagnostic-test" id="diagnostic-test">
+        <div class="diagnostic-test-header">
+          <div>
+            <div class="threshold-title">Полная проверка перчатки</div>
+            <p class="diagnostic-test-copy">Тест проверяет связь, диапазон, шум, достижение порогов, повторные сгибания и влияние соседних пальцев.</p>
+          </div>
+          <span class="diagnostic-overall idle" id="diag-overall">Не запускалась</span>
+        </div>
+        <div class="diagnostic-instruction" id="diag-instruction">Подключите перчатку и нажмите «Начать проверку».</div>
+        <div class="diagnostic-progress" id="diag-progress" aria-label="Ход диагностики"></div>
+        <div class="diagnostic-actions">
+          <button class="btn-primary" id="btn-diag-start">Начать проверку</button>
+          <button class="btn-ghost" id="btn-diag-cancel" hidden>Остановить</button>
+          <button class="btn-secondary" id="btn-reconnect">Подключить FlortteGlove</button>
+        </div>
+        <div class="diagnostic-results" id="diag-results"></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div id="screen-settings" class="screen">
+    <div class="screen-header">
+      <button class="btn-back" id="settings-back">← Назад</button>
+      <h2>Настройки</h2>
+    </div>
+    <div class="settings-body">
+      <div class="setting-group glove-settings">
+        <h3>Перчатка</h3>
+        <div class="settings-glove-row">
+          <div>
+            <p>BLE-перчатка: <strong>FlortteGlove</strong></p>
+            <p class="setting-hint" id="settings-glove-status">Bluetooth не подключён</p>
+          </div>
+          <button class="btn-primary" type="button" id="settings-bluetooth-connect">Подключить Bluetooth</button>
+        </div>
         <div class="calibration-panel" id="calibration-panel">
           <div class="calibration-header">
             <div>
@@ -253,7 +288,7 @@
         </div>
         <div class="threshold-controls">
           <div class="threshold-title">Откалиброванные пороги пальцев</div>
-          <div class="threshold-hint">Сгибание и разгибание задаются числами 0–4095. После калибровки их можно менять вручную.</div>
+          <div class="threshold-hint">Сгибание и разгибание задаются числами 0–4095. Изменения сохраняются автоматически на этом компьютере.</div>
           <div class="threshold-row">
             <div class="threshold-finger">Большой</div>
             <label>
@@ -310,22 +345,6 @@
             </label>
           </div>
         </div>
-        <button class="btn-primary" id="btn-reconnect">Подключить FlortteGlove по Bluetooth</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- SETTINGS -->
-  <div id="screen-settings" class="screen">
-    <div class="screen-header">
-      <button class="btn-back" id="settings-back">← Назад</button>
-      <h2>Настройки</h2>
-    </div>
-    <div class="settings-body">
-      <div class="setting-group">
-        <h3>ESP32</h3>
-        <p>BLE-перчатка: <strong>FlortteGlove</strong></p>
-        <button class="btn-primary" type="button" id="settings-bluetooth-connect">Подключить Bluetooth</button>
       </div>
       <div class="setting-group">
         <h3>Игра</h3>
@@ -374,7 +393,9 @@
   <script src="js/esp32.js"></script>
   <script src="js/gestures.js"></script>
   <script src="js/midi.js"></script>
+  <script src="js/diagnostic-metrics.js"></script>
   <script src="js/diagnostics.js"></script>
+  <script src="js/glove-settings.js"></script>
   <script src="js/game.js"></script>
   <script src="js/app.js"></script>
 </body>

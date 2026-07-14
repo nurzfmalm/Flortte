@@ -411,6 +411,7 @@ const App = (() => {
   function init() {
     // Init all modules
     Diagnostics.init();
+    GloveSettings.init();
     Game.init();
 
     _initHomePreview();
