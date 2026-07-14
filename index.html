@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Flortte — Glove Piano</title>
-  <link rel="stylesheet" href="style.css?v=ble-five-fingers-20260714-1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' blob:" />
+  <title>Flortte, пианино-перчатка</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
@@ -35,6 +36,14 @@
         <div class="gp-sensor" id="hp-s2">
           <span class="gp-label">СРЕДНИЙ</span>
           <div class="gp-bar"><div class="gp-fill" id="hp-f2"></div></div>
+        </div>
+        <div class="gp-sensor" id="hp-s3">
+          <span class="gp-label">БЕЗЫМЯННЫЙ</span>
+          <div class="gp-bar"><div class="gp-fill" id="hp-f3"></div></div>
+        </div>
+        <div class="gp-sensor" id="hp-s4">
+          <span class="gp-label">МИЗИНЕЦ</span>
+          <div class="gp-bar"><div class="gp-fill" id="hp-f4"></div></div>
         </div>
       </div>
 
@@ -91,6 +100,8 @@
           <span class="game-finger-chip" data-finger="0">Б</span>
           <span class="game-finger-chip" data-finger="1">У</span>
           <span class="game-finger-chip" data-finger="2">С</span>
+          <span class="game-finger-chip" data-finger="3">Бз</span>
+          <span class="game-finger-chip" data-finger="4">М</span>
         </div>
       </div>
 
@@ -113,6 +124,16 @@
             <span class="game-finger-value" id="game-finger-value-2">—</span>
             <div class="game-finger-bar"><div class="game-finger-fill" id="game-finger-fill-2"></div></div>
           </div>
+          <div class="game-finger-meter" data-finger="3">
+            <span class="game-finger-label">Безымянный</span>
+            <span class="game-finger-value" id="game-finger-value-3">—</span>
+            <div class="game-finger-bar"><div class="game-finger-fill" id="game-finger-fill-3"></div></div>
+          </div>
+          <div class="game-finger-meter" data-finger="4">
+            <span class="game-finger-label">Мизинец</span>
+            <span class="game-finger-value" id="game-finger-value-4">—</span>
+            <div class="game-finger-bar"><div class="game-finger-fill" id="game-finger-fill-4"></div></div>
+          </div>
         </div>
       </div>
     </div>
@@ -120,7 +141,7 @@
     <canvas id="game-canvas"></canvas>
 
     <div class="piano-row" id="piano-row">
-      <!-- 5 one-hand gesture lanes -->
+      <!-- 7 one-hand gesture lanes -->
       <div class="lane-key" data-lane="0">
         <span class="lane-gesture-icon" id="lane-icon-0">1</span>
         <span class="lane-label">1. УКАЗ+БОЛЬШ</span>
@@ -138,7 +159,15 @@
         <span class="lane-label">4. УКАЗ+СРЕД</span>
       </div>
       <div class="lane-key" data-lane="4">
-        <span class="lane-gesture-icon" id="lane-icon-4">8</span>
+        <span class="lane-gesture-icon" id="lane-icon-4">5</span>
+        <span class="lane-label">5. БЕЗЫМЯННЫЙ</span>
+      </div>
+      <div class="lane-key" data-lane="5">
+        <span class="lane-gesture-icon" id="lane-icon-5">6</span>
+        <span class="lane-label">6. МИЗИНЕЦ</span>
+      </div>
+      <div class="lane-key" data-lane="6">
+        <span class="lane-gesture-icon" id="lane-icon-6">8</span>
         <span class="lane-label">8. ТРИ ПАЛЬЦА</span>
       </div>
     </div>
@@ -179,14 +208,6 @@
           <div class="dc-value" id="dcv-2">—</div>
           <div class="dc-bar"><div class="dc-fill" id="dcf-2"></div></div>
           <div class="dc-gesture" id="dcg-2"></div>
-        </div>
-        <div class="gp-sensor" id="hp-s3">
-          <span class="gp-label">БЕЗЫМЯННЫЙ</span>
-          <div class="gp-bar"><div class="gp-fill" id="hp-f3"></div></div>
-        </div>
-        <div class="gp-sensor" id="hp-s4">
-          <span class="gp-label">МИЗИНЕЦ</span>
-          <div class="gp-bar"><div class="gp-fill" id="hp-f4"></div></div>
         </div>
         <div class="diag-card" id="dc-3">
           <div class="dc-label">БЕЗЫМЯННЫЙ</div>
@@ -266,6 +287,28 @@
               <input type="text" inputmode="numeric" pattern="[0-9]*" id="threshold-release-2" value="900" />
             </label>
           </div>
+          <div class="threshold-row">
+            <div class="threshold-finger">Безымянный</div>
+            <label>
+              <span>Сгибание</span>
+              <input type="text" inputmode="numeric" pattern="[0-9]*" id="threshold-bend-3" value="600" />
+            </label>
+            <label>
+              <span>Разгибание</span>
+              <input type="text" inputmode="numeric" pattern="[0-9]*" id="threshold-release-3" value="900" />
+            </label>
+          </div>
+          <div class="threshold-row">
+            <div class="threshold-finger">Мизинец</div>
+            <label>
+              <span>Сгибание</span>
+              <input type="text" inputmode="numeric" pattern="[0-9]*" id="threshold-bend-4" value="600" />
+            </label>
+            <label>
+              <span>Разгибание</span>
+              <input type="text" inputmode="numeric" pattern="[0-9]*" id="threshold-release-4" value="900" />
+            </label>
+          </div>
         </div>
         <button class="btn-primary" id="btn-reconnect">Подключить FlortteGlove по Bluetooth</button>
       </div>
@@ -318,7 +361,9 @@
           <div class="gmt-row"><span>2. Только большой</span><span>1</span><span>низкие</span><span>A / 2</span></div>
           <div class="gmt-row"><span>3. Только указательный</span><span>2</span><span>средние</span><span>S / 3</span></div>
           <div class="gmt-row"><span>4. Указательный + средний</span><span>3</span><span>высокие</span><span>S+D / 4</span></div>
-          <div class="gmt-row"><span>8. Указательный + средний + большой</span><span>4</span><span>самые высокие</span><span>A+S+D / 8</span></div>
+          <div class="gmt-row"><span>5. Только безымянный</span><span>4</span><span>выше</span><span>F / 5</span></div>
+          <div class="gmt-row"><span>6. Только мизинец</span><span>5</span><span>ещё выше</span><span>G / 6</span></div>
+          <div class="gmt-row"><span>8. Указательный + средний + большой</span><span>6</span><span>самые высокие</span><span>A+S+D / 8</span></div>
         </div>
       </div>
       <button class="btn-primary" id="settings-save">Сохранить</button>
@@ -326,11 +371,11 @@
   </div>
 
   <!-- ═══════════════════════════════ SCRIPTS ═══════════════════════════════ -->
-  <script src="js/esp32.js?v=ble-five-fingers-20260714-1"></script>
-  <script src="js/gestures.js?v=ble-five-fingers-20260714-1"></script>
-  <script src="js/midi.js?v=ble-five-fingers-20260714-1"></script>
-  <script src="js/diagnostics.js?v=ble-five-fingers-20260714-1"></script>
-  <script src="js/game.js?v=ble-five-fingers-20260714-1"></script>
-  <script src="js/app.js?v=ble-five-fingers-20260714-1"></script>
+  <script src="js/esp32.js"></script>
+  <script src="js/gestures.js"></script>
+  <script src="js/midi.js"></script>
+  <script src="js/diagnostics.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>

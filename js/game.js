@@ -1,7 +1,7 @@
 /**
  * game.js — Synthesia/Midiano-style falling note game engine
  *
- * 5 lanes matching the 5 one-hand gesture combinations.
+ * 7 lanes matching the 7 one-hand gesture combinations.
  * Notes scroll downward; player performs gesture when note hits the hit zone.
  * Notes with lane=null are played automatically (background harmony).
  *
@@ -15,13 +15,13 @@
  */
 
 const Game = (() => {
-  const FALLBACK_COLORS = ['#7c3aed', '#22d3a0', '#f59e0b', '#38bdf8', '#f472b6'];
-  const FALLBACK_GLOWS  = ['#a855f7', '#34d399', '#fbbf24', '#7dd3fc', '#f9a8d4'];
+  const FALLBACK_COLORS = ['#7c3aed', '#22d3a0', '#f59e0b', '#38bdf8', '#f472b6', '#fb7185', '#8b5cf6'];
+  const FALLBACK_GLOWS  = ['#a855f7', '#34d399', '#fbbf24', '#7dd3fc', '#f9a8d4', '#fda4af', '#a78bfa'];
   const HIT_ZONE_Y   = 0.82;   // fraction from top
   const NOTE_W_FRAC  = 0.78;   // note width as fraction of lane width
   const NOTE_H       = 28;     // px (logical)
   const LOOKAHEAD_MS = 3000;   // how far ahead we render notes
-  const SENSOR_KEYS  = ['keyPinch', 'indexThumb', 'middleThumb'];
+  const SENSOR_KEYS  = ['keyPinch', 'indexThumb', 'middleThumb', 'ring', 'little'];
   const SENSOR_MAX   = 4095;
 
   let _canvas, _ctx;
@@ -74,11 +74,15 @@ const Game = (() => {
         document.getElementById('game-finger-value-0'),
         document.getElementById('game-finger-value-1'),
         document.getElementById('game-finger-value-2'),
+        document.getElementById('game-finger-value-3'),
+        document.getElementById('game-finger-value-4'),
       ],
       fingerFills: [
         document.getElementById('game-finger-fill-0'),
         document.getElementById('game-finger-fill-1'),
         document.getElementById('game-finger-fill-2'),
+        document.getElementById('game-finger-fill-3'),
+        document.getElementById('game-finger-fill-4'),
       ],
     };
     _resize();
@@ -202,7 +206,7 @@ const Game = (() => {
     if (_assist.nextName) _assist.nextName.textContent = gesture.name || 'Жест';
     if (_assist.nextMeta) _assist.nextMeta.textContent = meta;
 
-    const pattern = gesture.pattern || [0, 0, 0];
+    const pattern = gesture.pattern || [0, 0, 0, 0, 0];
     _assist.recipeChips.forEach((chip, i) => {
       chip.classList.toggle('needed', pattern[i] === 1);
     });
@@ -211,7 +215,7 @@ const Game = (() => {
   function _updateFingerReadout(sensors, result) {
     if (!_assist) return;
     const values = SENSOR_KEYS.map(key => Number(sensors[key]));
-    const bits = result.bits || [0, 0, 0];
+    const bits = result.bits || [0, 0, 0, 0, 0];
     const gesture = result.gesture || {};
     const signature = `${values.join('|')}:${bits.join('')}:${gesture.id || ''}`;
 

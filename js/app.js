@@ -306,15 +306,19 @@ const App = (() => {
       KeyA: { index: 0, label: 'Большой' },
       KeyS: { index: 1, label: 'Указательный' },
       KeyD: { index: 2, label: 'Средний' },
+      KeyF: { index: 3, label: 'Безымянный' },
+      KeyG: { index: 4, label: 'Мизинец' },
     };
 
     const comboByKey = {
-      '1': { bits: [1,1,0], label: '1. Указательный + большой' },
-      '2': { bits: [1,0,0], label: '2. Только большой' },
-      '3': { bits: [0,1,0], label: '3. Только указательный' },
-      '4': { bits: [0,1,1], label: '4. Указательный + средний' },
-      '8': { bits: [1,1,1], label: '8. Указательный + средний + большой' },
-      '0': { bits: [0,0,0], label: 'Открытая рука' },
+      '1': { bits: [1,1,0,0,0], label: '1. Указательный + большой' },
+      '2': { bits: [1,0,0,0,0], label: '2. Только большой' },
+      '3': { bits: [0,1,0,0,0], label: '3. Только указательный' },
+      '4': { bits: [0,1,1,0,0], label: '4. Указательный + средний' },
+      '5': { bits: [0,0,0,1,0], label: '5. Только безымянный' },
+      '6': { bits: [0,0,0,0,1], label: '6. Только мизинец' },
+      '8': { bits: [1,1,1,0,0], label: '8. Указательный + средний + большой' },
+      '0': { bits: [0,0,0,0,0], label: 'Открытая рука' },
     };
 
     const comboByCode = {
@@ -323,22 +327,28 @@ const App = (() => {
       Digit2: comboByKey['2'],
       Digit3: comboByKey['3'],
       Digit4: comboByKey['4'],
+      Digit5: comboByKey['5'],
+      Digit6: comboByKey['6'],
       Digit8: comboByKey['8'],
       Numpad0: comboByKey['0'],
       Numpad1: comboByKey['1'],
       Numpad2: comboByKey['2'],
       Numpad3: comboByKey['3'],
       Numpad4: comboByKey['4'],
+      Numpad5: comboByKey['5'],
+      Numpad6: comboByKey['6'],
       Numpad8: comboByKey['8'],
     };
 
-    const heldFingerBits = [0, 0, 0];
+    const heldFingerBits = [0, 0, 0, 0, 0];
     const heldCombos = new Map();
 
     const makeValues = (bits) => ({
       keyPinch:    bits[0] ? 50 : 3600,
       indexThumb:  bits[1] ? 50 : 3600,
       middleThumb: bits[2] ? 50 : 3600,
+      ring:        bits[3] ? 50 : 3600,
+      little:      bits[4] ? 50 : 3600,
     });
 
     const isTypingTarget = (target) =>
