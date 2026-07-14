@@ -1,314 +1,146 @@
-/**
- * esp32.js — Polling the ESP32 glove bridge
- *
- * Exports a singleton `ESP32` with:
- *   ESP32.start()          — begin polling
- *   ESP32.stop()           — stop polling
- *   ESP32.onData(fn)       — subscribe to sensor updates
- *   ESP32.offData(fn)      — unsubscribe
- *   ESP32.sensors          — latest smoothed values { keyPinch/thumb, indexThumb/index, middleThumb/middle }
- *   ESP32.status           — 'connecting' | 'connected' | 'error'
- *   ESP32.setIP(ip)        — change target IP
- *   ESP32.calibrate()      — run ESP32 calibration
- *   ESP32.setCalibration() — manually update raw open/bent calibration values
- *   ESP32.pollInterval     — ms between polls (settable)
- */
-
+/** Web Bluetooth bridge for the Flortte ESP32 glove. */
 const ESP32 = (() => {
-  const STATE_TIMEOUT_MS = 10000;
-  const PROXY_BASE_PATH = '/esp32';
-  const LOCAL_DEV_PROXY_BASE_URL = 'http://127.0.0.1:8000/esp32';
-  const PROXY_TARGET = 'local-proxy';
-  const DEFAULT_ESP_PORT = 8080;
-  const DIRECT_AP_IP = '192.168.4.1:8080';
-  const DIRECT_AP_IP_PORTLESS = '192.168.4.1';
-  let _proxyBaseUrl = _defaultProxyBaseUrl();
-  let _ip           = _normalizeTarget(localStorage.getItem('esp32_ip') || PROXY_TARGET);
-  let _pollInterval = _normalizePollInterval(localStorage.getItem('esp32_poll') || '600');
-  let _timerId      = null;
-  let _listeners    = [];
-  let _status       = 'connecting';
-  let _consecutiveErrors = 0;
-  let _pollInFlight = false;
-  let _lastError    = '';
-  let _lastUrl      = '';
-  let _lastState = {
-    raw: {},
-    calibration: {},
-    enabled: {},
-    calibrating: false,
-    calibratedAt: 0,
+  const DEVICE_NAME = 'FlortteGlove';
+  const SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+  const RX_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+  const TX_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+
+  let _device = null;
+  let _rx = null;
+  let _tx = null;
+  let _listeners = [];
+  let _status = 'disconnected';
+  let _lastError = '';
+  let _lastState = { raw: {}, bendPercent: {}, calibration: {}, enabled: {}, calibrating: false, calibratedAt: 0 };
+  const sensors = {
+    keyPinch: 4095,
+    indexThumb: 4095,
+    middleThumb: 4095,
+    ring: 4095,
+    little: 4095,
   };
-
-  const sensors = { keyPinch: 4095, indexThumb: 4095, middleThumb: 4095 };
-
-  // ── helpers ────────────────────────────────────────────────
-  function _normalizePollInterval(value) {
-    const ms = parseInt(value, 10);
-    return Number.isFinite(ms) ? Math.max(300, ms) : 600;
-  }
-
-  function _defaultProxyBaseUrl() {
-    if (typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol)) {
-      return PROXY_BASE_PATH;
-    }
-    return LOCAL_DEV_PROXY_BASE_URL;
-  }
-
-  function _unique(list) {
-    return list.filter((item, index) => item && list.indexOf(item) === index);
-  }
-
-  function _proxyBaseCandidates() {
-    const candidates = [_proxyBaseUrl, PROXY_BASE_PATH, LOCAL_DEV_PROXY_BASE_URL];
-
-    if (typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol) && window.location.hostname) {
-      candidates.push(`${window.location.protocol}//${window.location.hostname}:8000/esp32`);
-    }
-
-    return _unique(candidates.map(base => String(base).replace(/\/+$/, '')));
-  }
-
-  function _normalizeTarget(value) {
-    const target = String(value || '').trim()
-      .replace(/^https?:\/\//i, '')
-      .replace(/\/.*$/, '');
-    if (!target) return PROXY_TARGET;
-    if (target === PROXY_TARGET || target === 'proxy' || target === '/esp32') return PROXY_TARGET;
-    if (typeof window !== 'undefined') {
-      const pageHost = window.location.host;
-      const pageHostname = window.location.hostname;
-      if (target === pageHost || target === pageHostname) return PROXY_TARGET;
-    }
-    if (/:(8000)$/.test(target)) return PROXY_TARGET;
-    if (!/:\d+$/.test(target)) return `${target}:${DEFAULT_ESP_PORT}`;
-    return target || PROXY_TARGET;
-  }
-
-  function _url(path = 'state') { return _urlFor(_ip, path); }
-  function _urlFor(target, path = 'state') {
-    return target === PROXY_TARGET ? `${_proxyBaseUrl}/${path}` : `http://${target}/${path}`;
-  }
-
-  function _fallbackTargets(primary) {
-    const targets = [primary, PROXY_TARGET, DIRECT_AP_IP, DIRECT_AP_IP_PORTLESS];
-    return targets.filter((target, index) => target && targets.indexOf(target) === index);
-  }
-
-  async function _fetchJsonUrl(url, options = {}) {
-    const { timeoutMs = STATE_TIMEOUT_MS, ...fetchOptions } = options;
-    _lastUrl = url;
-    const res = await fetch(url, {
-      ...fetchOptions,
-      signal: AbortSignal.timeout(timeoutMs),
-      cache: 'no-store',
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
-  }
-
-  async function _fetchTarget(target, path, options = {}) {
-    if (target !== PROXY_TARGET) {
-      return _fetchJsonUrl(_urlFor(target, path), options);
-    }
-
-    let lastErr = null;
-    for (const base of _proxyBaseCandidates()) {
-      try {
-        const data = await _fetchJsonUrl(`${base}/${path}`, options);
-        _proxyBaseUrl = base;
-        return data;
-      } catch (err) {
-        lastErr = err;
-      }
-    }
-
-    throw lastErr || new Error('local proxy request failed');
-  }
-
-  async function _fetchState(target) {
-    return _fetchTarget(target, 'state');
-  }
-
-  function _copyCalibration(calibration = {}) {
-    return Object.keys(calibration).reduce((copy, key) => {
-      copy[key] = { ...calibration[key] };
-      return copy;
-    }, {});
-  }
 
   function _snapshotState() {
     return {
       ..._lastState,
       raw: { ..._lastState.raw },
-      calibration: _copyCalibration(_lastState.calibration),
-      enabled: { ...(_lastState.enabled || {}) },
+      bendPercent: { ..._lastState.bendPercent },
+      calibration: { ..._lastState.calibration },
+      enabled: { ..._lastState.enabled },
     };
   }
 
   function _emit() {
-    const snap = { ...sensors };
+    const values = { ...sensors };
     const state = _snapshotState();
-    _listeners.forEach(fn => { try { fn(snap, _status, state); } catch(e) {} });
+    _listeners.forEach(fn => { try { fn(values, _status, state); } catch (_) {} });
   }
 
-  function _setStatus(s) {
-    if (_status === s) return;
-    _status = s;
+  function _setStatus(status) {
+    _status = status;
     _emit();
   }
 
   function _applyState(data = {}) {
-    const s = data.sensors || {};
-    sensors.keyPinch    = s.keyPinch    ?? s.thumb  ?? sensors.keyPinch;
-    sensors.indexThumb  = s.indexThumb  ?? s.index  ?? sensors.indexThumb;
-    sensors.middleThumb = s.middleThumb ?? s.middle ?? sensors.middleThumb;
-
-    const enabledFromCalibration = Object.keys(data.calibration || {}).reduce((enabled, key) => {
-      if (data.calibration[key]?.enabled !== undefined) enabled[key] = data.calibration[key].enabled !== false;
-      return enabled;
-    }, {});
-    const enabled = data.enabled || (Object.keys(enabledFromCalibration).length ? enabledFromCalibration : null);
-
+    const values = data.sensors || {};
+    sensors.keyPinch = values.key ?? values.keyPinch ?? values.thumb ?? sensors.keyPinch;
+    sensors.indexThumb = values.index ?? values.indexThumb ?? sensors.indexThumb;
+    sensors.middleThumb = values.middle ?? values.middleThumb ?? sensors.middleThumb;
+    sensors.ring = values.ring ?? sensors.ring;
+    sensors.little = values.little ?? sensors.little;
     _lastState = {
+      ..._lastState,
       raw: { ...(_lastState.raw || {}), ...(data.raw || {}) },
-      calibration: data.calibration ? _copyCalibration(data.calibration) : _lastState.calibration,
-      enabled: enabled ? { ...enabled } : _lastState.enabled,
-      calibrating: !!data.calibrating,
+      bendPercent: { ...(_lastState.bendPercent || {}), ...(data.bendPercent || {}) },
+      calibrating: data.calibrating ?? _lastState.calibrating,
       calibratedAt: data.calibratedAt ?? _lastState.calibratedAt,
     };
-
-    if (typeof Gestures !== 'undefined' && Gestures.setEnabledFingers) {
-      Gestures.setEnabledFingers(_lastState.enabled);
-    }
-  }
-
-  // ── poll ───────────────────────────────────────────────────
-  async function _poll() {
-    if (_pollInFlight) return;
-    _pollInFlight = true;
-
-    try {
-      let data;
-      let connectedTarget = _ip;
-      let lastErr = null;
-
-      for (const target of _fallbackTargets(_ip)) {
-        try {
-          data = await _fetchState(target);
-          connectedTarget = target;
-          lastErr = null;
-          break;
-        } catch (err) {
-          lastErr = err;
-        }
-      }
-
-      if (!data) throw lastErr || new Error('state request failed');
-
-      _ip = connectedTarget;
-      localStorage.setItem('esp32_ip', _ip);
-      _lastError = '';
-      _applyState(data);
-      _consecutiveErrors = 0;
-      _setStatus('connected');
-      _emit();
-    } catch (err) {
-      _lastError = `${err.name || 'Error'}: ${err.message || 'state request failed'}`;
-      _consecutiveErrors++;
-      if (_consecutiveErrors >= 3) _setStatus('error');
-    } finally {
-      _pollInFlight = false;
-    }
-  }
-
-  // ── public API ─────────────────────────────────────────────
-  function start() {
-    if (_timerId) return;
-    _poll(); // immediate first hit
-    _timerId = setInterval(_poll, _pollInterval);
-  }
-
-  function stop() {
-    if (_timerId) { clearInterval(_timerId); _timerId = null; }
-  }
-
-  function onData(fn)  { if (!_listeners.includes(fn)) _listeners.push(fn); }
-  function offData(fn) { _listeners = _listeners.filter(f => f !== fn); }
-
-  function setIP(ip) {
-    _ip = _normalizeTarget(ip);
-    localStorage.setItem('esp32_ip', _ip);
-    _consecutiveErrors = 0;
-    _setStatus('connecting');
-    stop(); start(); // restart with new target
-  }
-
-  function setPollInterval(ms) {
-    _pollInterval = _normalizePollInterval(ms);
-    localStorage.setItem('esp32_poll', _pollInterval);
-    if (_timerId) { stop(); start(); }
-  }
-
-  async function calibrate(action = 'start') {
-    _lastState = { ..._lastState, calibrating: true };
+    _lastError = '';
+    if (_status !== 'connected') _status = 'connected';
     _emit();
+  }
 
+  function _onValue(event) {
     try {
-      const data = await _fetchTarget(_ip, 'calibrate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ action }),
-        timeoutMs: 15000,
-      });
-      _applyState(data);
-      _consecutiveErrors = 0;
-      _setStatus('connected');
-      _emit();
-      return _snapshotState();
+      const view = event.target.value;
+      const text = new TextDecoder().decode(new Uint8Array(view.buffer, view.byteOffset, view.byteLength));
+      _applyState(JSON.parse(text));
     } catch (err) {
-      _lastState = { ..._lastState, calibrating: false };
+      _lastError = `Некорректные BLE-данные: ${err.message}`;
+    }
+  }
+
+  function _onDisconnected() {
+    _rx = null;
+    _tx = null;
+    _setStatus('disconnected');
+  }
+
+  async function connect() {
+    if (!navigator.bluetooth) {
+      _lastError = 'Web Bluetooth не поддерживается этим браузером';
       _setStatus('error');
-      _emit();
+      throw new Error(_lastError);
+    }
+    if (_device?.gatt?.connected && _rx && _tx) return;
+
+    _lastError = '';
+    _setStatus('connecting');
+    try {
+      _device = await navigator.bluetooth.requestDevice({
+        filters: [{ name: DEVICE_NAME }],
+        optionalServices: [SERVICE_UUID],
+      });
+      _device.addEventListener('gattserverdisconnected', _onDisconnected);
+      const server = await _device.gatt.connect();
+      const service = await server.getPrimaryService(SERVICE_UUID);
+      _rx = await service.getCharacteristic(RX_UUID);
+      _tx = await service.getCharacteristic(TX_UUID);
+      _tx.addEventListener('characteristicvaluechanged', _onValue);
+      await _tx.startNotifications();
+      try { _applyState(JSON.parse(new TextDecoder().decode(await _tx.readValue()))); }
+      catch (_) { _setStatus('connected'); }
+    } catch (err) {
+      _lastError = err?.name === 'NotFoundError' ? 'Выбор Bluetooth-устройства отменён' : (err.message || String(err));
+      _setStatus('error');
       throw err;
     }
   }
 
-  async function setCalibration(calibration) {
-    const body = new URLSearchParams();
-    Object.entries(calibration || {}).forEach(([key, pair]) => {
-      if (pair?.open !== undefined) body.set(`${key}Open`, pair.open);
-      if (pair?.bent !== undefined) body.set(`${key}Bent`, pair.bent);
-    });
+  function disconnect() {
+    if (_device?.gatt?.connected) _device.gatt.disconnect();
+    else _onDisconnected();
+  }
 
-    const data = await _fetchTarget(_ip, 'calibration', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body,
-      timeoutMs: 10000,
-    });
-    _applyState(data);
-    _consecutiveErrors = 0;
-    _setStatus('connected');
+  async function _writeCommand(command) {
+    if (!_rx || !_device?.gatt?.connected) throw new Error('Сначала подключите перчатку по Bluetooth');
+    const bytes = new TextEncoder().encode(command);
+    if (_rx.writeValueWithoutResponse) await _rx.writeValueWithoutResponse(bytes);
+    else await _rx.writeValue(bytes);
+  }
+
+  async function calibrate(action = 'start') {
+    await _writeCommand(`calibrate:${action}`);
+    _lastState = { ..._lastState, calibrating: !['open', 'cancel'].includes(action) };
     _emit();
+    await new Promise(resolve => setTimeout(resolve, action === 'open' ? 700 : 250));
     return _snapshotState();
   }
 
-  function injectSensors(values) {
-    sensors.keyPinch    = values.keyPinch    ?? values.thumb  ?? sensors.keyPinch;
-    sensors.indexThumb  = values.indexThumb  ?? values.index  ?? sensors.indexThumb;
-    sensors.middleThumb = values.middleThumb ?? values.middle ?? sensors.middleThumb;
-    _emit();
-  }
+  function start() { _emit(); }
+  function stop() {}
+  function onData(fn) { if (!_listeners.includes(fn)) _listeners.push(fn); }
+  function offData(fn) { _listeners = _listeners.filter(item => item !== fn); }
+  function injectSensors(values = {}) { _applyState({ sensors: values }); }
 
   return {
-    get sensors()      { return sensors; },
-    get status()       { return _status; },
-    get ip()           { return _ip; },
-    get pollInterval() { return _pollInterval; },
-    get lastState()    { return _snapshotState(); },
-    get lastError()    { return _lastError; },
-    get lastUrl()      { return _lastUrl || _url('state'); },
-    start, stop, onData, offData, setIP, setPollInterval, calibrate, setCalibration, injectSensors,
+    get sensors() { return sensors; },
+    get status() { return _status; },
+    get deviceName() { return _device?.name || DEVICE_NAME; },
+    get lastState() { return _snapshotState(); },
+    get lastError() { return _lastError; },
+    get lastUrl() { return `bluetooth://${DEVICE_NAME}`; },
+    get isSupported() { return !!navigator.bluetooth; },
+    start, stop, connect, disconnect, calibrate, onData, offData, injectSensors,
   };
 })();

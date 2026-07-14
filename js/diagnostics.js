@@ -9,9 +9,9 @@
 
 const Diagnostics = (() => {
   const HISTORY_LEN = 200;   // samples kept in ring buffer
-  const COLORS = ['#7c3aed', '#22d3a0', '#f59e0b'];
-  const SENSOR_KEYS = ['keyPinch', 'indexThumb', 'middleThumb'];
-  const SENSOR_LABELS = ['БОЛЬШОЙ', 'УКАЗАТЕЛЬНЫЙ', 'СРЕДНИЙ'];
+  const COLORS = ['#7c3aed', '#22d3a0', '#f59e0b', '#38bdf8', '#f472b6'];
+  const SENSOR_KEYS = ['keyPinch', 'indexThumb', 'middleThumb', 'ring', 'little'];
+  const SENSOR_LABELS = ['БОЛЬШОЙ', 'УКАЗАТЕЛЬНЫЙ', 'СРЕДНИЙ', 'БЕЗЫМЯННЫЙ', 'МИЗИНЕЦ'];
   const MAX_ADC = 4095;
 
   let _canvas, _ctx2d;
@@ -19,11 +19,7 @@ const Diagnostics = (() => {
   let _raf    = null;
 
   // Ring buffers
-  const _history = [
-    new Float32Array(HISTORY_LEN),
-    new Float32Array(HISTORY_LEN),
-    new Float32Array(HISTORY_LEN),
-  ];
+  const _history = SENSOR_KEYS.map(() => new Float32Array(HISTORY_LEN));
   let _histIdx = 0;
 
   // DOM refs (lazily grabbed)
@@ -40,9 +36,9 @@ const Diagnostics = (() => {
   let _calibrationDirty = false;
 
   function _grabDom() {
-    _dcv  = [document.getElementById('dcv-0'), document.getElementById('dcv-1'), document.getElementById('dcv-2')];
-    _dcf  = [document.getElementById('dcf-0'), document.getElementById('dcf-1'), document.getElementById('dcf-2')];
-    _dcg  = [document.getElementById('dcg-0'), document.getElementById('dcg-1'), document.getElementById('dcg-2')];
+    _dcv = SENSOR_KEYS.map((_, i) => document.getElementById(`dcv-${i}`));
+    _dcf = SENSOR_KEYS.map((_, i) => document.getElementById(`dcf-${i}`));
+    _dcg = SENSOR_KEYS.map((_, i) => document.getElementById(`dcg-${i}`));
     _thresholdInputs = [
       { bend: document.getElementById('threshold-bend-0'), release: document.getElementById('threshold-release-0') },
       { bend: document.getElementById('threshold-bend-1'), release: document.getElementById('threshold-release-1') },
@@ -138,9 +134,7 @@ const Diagnostics = (() => {
     if (!_active) return;
 
     // Update history ring
-    _history[0][_histIdx] = sensors.keyPinch;
-    _history[1][_histIdx] = sensors.indexThumb;
-    _history[2][_histIdx] = sensors.middleThumb;
+    SENSOR_KEYS.forEach((key, i) => { _history[i][_histIdx] = sensors[key]; });
     _histIdx = (_histIdx + 1) % HISTORY_LEN;
 
     // Update cards
@@ -158,7 +152,7 @@ const Diagnostics = (() => {
 
     // Per-sensor "active" labels
     SENSOR_KEYS.forEach((key, i) => {
-      const active = !!result.bits[i];
+      const active = i < 3 && !!result.bits[i];
       const disabled = _isCalibrationDisabled(state?.calibration?.[key]);
       _dcg[i].textContent = disabled ? 'не подключен' : active ? '● АКТИВЕН' : '';
       _dcg[i].style.color = disabled ? '#6b7280' : active ? COLORS[i] : '';
@@ -173,10 +167,10 @@ const Diagnostics = (() => {
       _syncCalibrationInputs(state);
     }
     if (!_isCalibrating && !_calibrationDirty) {
-      if (status === 'connected' && state?.calibration) {
-        _setCalibrationStatus('Калибровка получена от ESP32', 'done');
+      if (status === 'connected') {
+        _setCalibrationStatus('FlortteGlove подключена по Bluetooth', 'done');
       } else if (status === 'error') {
-        _setCalibrationStatus('ESP32 недоступна. Проверьте IP/Wi-Fi.', 'error');
+        _setCalibrationStatus('ESP32 не подключена по Bluetooth.', 'error');
       }
     }
   }
@@ -206,7 +200,7 @@ const Diagnostics = (() => {
     }
 
     // Per-sensor threshold lines
-    SENSOR_KEYS.forEach((key, i) => {
+    SENSOR_KEYS.slice(0, 3).forEach((key, i) => {
       const thresholds = Gestures.getThresholdPair(key);
       const bendY = H * (1 - thresholds.bend / MAX_ADC);
       const releaseY = H * (1 - thresholds.release / MAX_ADC);
@@ -233,7 +227,7 @@ const Diagnostics = (() => {
     });
 
     // Draw sensor lines
-    for (let s = 0; s < 3; s++) {
+    for (let s = 0; s < SENSOR_KEYS.length; s++) {
       _ctx2d.strokeStyle = COLORS[s];
       _ctx2d.lineWidth   = 2 * dpr;
       _ctx2d.shadowColor = COLORS[s];
@@ -254,7 +248,7 @@ const Diagnostics = (() => {
     // Legend
     let lx = 8 * dpr;
     _ctx2d.font = `${9 * dpr}px Consolas, "Courier New", monospace`;
-    for (let s = 0; s < 3; s++) {
+    for (let s = 0; s < SENSOR_KEYS.length; s++) {
       _ctx2d.fillStyle = COLORS[s];
       _ctx2d.fillRect(lx, 6 * dpr, 16 * dpr, 2 * dpr);
       _ctx2d.fillText(SENSOR_LABELS[s], lx + 22 * dpr, 12 * dpr);
@@ -422,14 +416,13 @@ const Diagnostics = (() => {
     _cancelCalibrationButton?.addEventListener('click', () => _sendCalibrationStep('cancel'));
     _applyCalibrationButton?.addEventListener('click', _applyCalibrationInputs);
 
-    const ipInput  = document.getElementById('esp-ip-input');
     const btnRecon = document.getElementById('btn-reconnect');
-    if (ipInput) {
-      ipInput.value = ESP32.ip;
-      if (btnRecon) {
-        btnRecon.addEventListener('click', () => ESP32.setIP(ipInput.value.trim()));
-      }
-    }
+    btnRecon?.addEventListener('click', async () => {
+      btnRecon.disabled = true;
+      try { await ESP32.connect(); }
+      catch (err) { _setCalibrationStatus(`Bluetooth: ${ESP32.lastError || err.message}`, 'error'); }
+      finally { btnRecon.disabled = false; }
+    });
 
     _showCalibrationAction('idle');
     _setCalibrationSteps('idle');

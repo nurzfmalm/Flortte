@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Flortte — Glove Piano</title>
-  <link rel="stylesheet" href="style.css?v=kids-audio-20260710-1" />
+  <link rel="stylesheet" href="style.css?v=ble-five-fingers-20260714-1" />
 </head>
 <body>
 
@@ -40,8 +40,9 @@
 
       <div class="esp-status-row">
         <div class="esp-dot" id="esp-dot"></div>
-        <span id="esp-status-label">Подключение…</span>
+        <span id="esp-status-label">Bluetooth не подключён</span>
       </div>
+      <button class="btn-secondary small" id="btn-bluetooth-connect">Подключить FlortteGlove</button>
 
       <div class="home-actions">
         <button class="btn-primary" id="btn-play">▶ Играть</button>
@@ -179,6 +180,26 @@
           <div class="dc-bar"><div class="dc-fill" id="dcf-2"></div></div>
           <div class="dc-gesture" id="dcg-2"></div>
         </div>
+        <div class="gp-sensor" id="hp-s3">
+          <span class="gp-label">БЕЗЫМЯННЫЙ</span>
+          <div class="gp-bar"><div class="gp-fill" id="hp-f3"></div></div>
+        </div>
+        <div class="gp-sensor" id="hp-s4">
+          <span class="gp-label">МИЗИНЕЦ</span>
+          <div class="gp-bar"><div class="gp-fill" id="hp-f4"></div></div>
+        </div>
+        <div class="diag-card" id="dc-3">
+          <div class="dc-label">БЕЗЫМЯННЫЙ</div>
+          <div class="dc-value" id="dcv-3">—</div>
+          <div class="dc-bar"><div class="dc-fill" id="dcf-3"></div></div>
+          <div class="dc-gesture" id="dcg-3"></div>
+        </div>
+        <div class="diag-card" id="dc-4">
+          <div class="dc-label">МИЗИНЕЦ</div>
+          <div class="dc-value" id="dcv-4">—</div>
+          <div class="dc-bar"><div class="dc-fill" id="dcf-4"></div></div>
+          <div class="dc-gesture" id="dcg-4"></div>
+        </div>
       </div>
 
       <div class="diag-detected">
@@ -208,24 +229,6 @@
             <button class="btn-primary small" id="btn-capture-open" hidden>Сохранить прямое положение</button>
             <button class="btn-ghost small" id="btn-cancel-calibration" hidden>Отмена</button>
           </div>
-          <div class="calibration-grid">
-            <div class="calibration-cell">
-              <div class="calibration-finger">Большой</div>
-              <label><span>Открыт</span><input type="text" inputmode="numeric" id="cal-open-0" value="—" /></label>
-              <label><span>Согнут</span><input type="text" inputmode="numeric" id="cal-bent-0" value="—" /></label>
-            </div>
-            <div class="calibration-cell">
-              <div class="calibration-finger">Указательный</div>
-              <label><span>Открыт</span><input type="text" inputmode="numeric" id="cal-open-1" value="—" /></label>
-              <label><span>Согнут</span><input type="text" inputmode="numeric" id="cal-bent-1" value="—" /></label>
-            </div>
-            <div class="calibration-cell">
-              <div class="calibration-finger">Средний</div>
-              <label><span>Открыт</span><input type="text" inputmode="numeric" id="cal-open-2" value="—" /></label>
-              <label><span>Согнут</span><input type="text" inputmode="numeric" id="cal-bent-2" value="—" /></label>
-            </div>
-          </div>
-          <button class="btn-ghost small" id="btn-apply-calibration">Применить значения</button>
         </div>
         <div class="threshold-controls">
           <div class="threshold-title">Откалиброванные пороги пальцев</div>
@@ -264,11 +267,7 @@
             </label>
           </div>
         </div>
-        <label>
-          <span>IP адрес ESP32</span>
-          <input type="text" id="esp-ip-input" value="192.168.4.1" />
-          <button class="btn-ghost small" id="btn-reconnect">Применить</button>
-        </label>
+        <button class="btn-primary" id="btn-reconnect">Подключить FlortteGlove по Bluetooth</button>
       </div>
     </div>
   </div>
@@ -282,14 +281,8 @@
     <div class="settings-body">
       <div class="setting-group">
         <h3>ESP32</h3>
-        <label>
-          <span>IP адрес</span>
-          <input type="text" id="settings-esp-ip" value="192.168.4.1" />
-        </label>
-        <label>
-          <span>Интервал опроса (мс)</span>
-          <input type="number" id="settings-poll" min="300" max="2000" value="600" />
-        </label>
+        <p>BLE-перчатка: <strong>FlortteGlove</strong></p>
+        <button class="btn-primary" type="button" id="settings-bluetooth-connect">Подключить Bluetooth</button>
       </div>
       <div class="setting-group">
         <h3>Игра</h3>
@@ -333,11 +326,11 @@
   </div>
 
   <!-- ═══════════════════════════════ SCRIPTS ═══════════════════════════════ -->
-  <script src="js/esp32.js?v=kids-audio-20260710-1"></script>
-  <script src="js/gestures.js?v=kids-audio-20260710-1"></script>
-  <script src="js/midi.js?v=kids-audio-20260710-1"></script>
-  <script src="js/diagnostics.js?v=kids-audio-20260710-1"></script>
-  <script src="js/game.js?v=kids-audio-20260710-1"></script>
-  <script src="js/app.js?v=kids-audio-20260710-1"></script>
+  <script src="js/esp32.js?v=ble-five-fingers-20260714-1"></script>
+  <script src="js/gestures.js?v=ble-five-fingers-20260714-1"></script>
+  <script src="js/midi.js?v=ble-five-fingers-20260714-1"></script>
+  <script src="js/diagnostics.js?v=ble-five-fingers-20260714-1"></script>
+  <script src="js/game.js?v=ble-five-fingers-20260714-1"></script>
+  <script src="js/app.js?v=ble-five-fingers-20260714-1"></script>
 </body>
 </html>

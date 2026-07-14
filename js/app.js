@@ -41,26 +41,25 @@ const App = (() => {
       document.getElementById('hp-f0'),
       document.getElementById('hp-f1'),
       document.getElementById('hp-f2'),
+      document.getElementById('hp-f3'),
+      document.getElementById('hp-f4'),
     ];
     const dot   = document.getElementById('esp-dot');
     const label = document.getElementById('esp-status-label');
     const MAX   = 4095;
 
     ESP32.onData((sensors, status) => {
-      const vals = [sensors.keyPinch, sensors.indexThumb, sensors.middleThumb];
+      const vals = [sensors.keyPinch, sensors.indexThumb, sensors.middleThumb, sensors.ring, sensors.little];
       vals.forEach((v, i) => {
         if (fills[i]) fills[i].style.width = (v / MAX * 100).toFixed(1) + '%';
       });
 
       dot.className   = 'esp-dot' + (status === 'connected' ? ' connected' : status === 'error' ? ' error' : '');
-      label.textContent = status === 'connected' ? 'Перчатка подключена'
-                        : status === 'error'     ? 'ESP32 недоступен — проверьте Wi-Fi'
-                        :                          'Подключение…';
-      const debug = `${ESP32.lastUrl}${ESP32.lastError ? ` | ${ESP32.lastError}` : ''}`;
-      label.title = debug;
-      label.textContent = status === 'connected' ? `ESP32 connected: ${ESP32.ip}`
-                        : status === 'error'     ? `ESP32 error: ${debug}`
-                        :                          `Connecting: ${ESP32.ip}`;
+      label.textContent = status === 'connected' ? 'Перчатка FlortteGlove подключена'
+                        : status === 'connecting' ? 'Подключение Bluetooth…'
+                        : status === 'error' ? `Bluetooth: ${ESP32.lastError}`
+                        : 'Bluetooth не подключён';
+      label.title = ESP32.lastError || ESP32.lastUrl;
     });
   }
 
@@ -189,8 +188,7 @@ const App = (() => {
 
   // ── Settings screen ───────────────────────────────────────
   function _bindSettings() {
-    const espIp      = document.getElementById('settings-esp-ip');
-    const pollInput  = document.getElementById('settings-poll');
+    const bluetoothButton = document.getElementById('settings-bluetooth-connect');
     const speedInput = document.getElementById('settings-speed');
     const speedVal   = document.getElementById('settings-speed-val');
     const tempoInput = document.getElementById('settings-tempo');
@@ -201,7 +199,7 @@ const App = (() => {
     const volVal     = document.getElementById('settings-vol-val');
     const saveBtn    = document.getElementById('settings-save');
 
-    if (!espIp) return;
+    if (!saveBtn) return;
 
     const readBoundedNumber = (input, min, max, fallback) => {
       const text = String(input.value || '').trim();
@@ -223,8 +221,6 @@ const App = (() => {
     };
 
     // Load current values
-    espIp.value      = ESP32.ip;
-    pollInput.value  = ESP32.pollInterval;
     speedInput.value = Game.getSpeed();
     speedVal.textContent = Game.getSpeed() + ' px/s';
     tempoInput.value = Math.round(MidiPlayer.getTempo() * 100);
@@ -254,8 +250,6 @@ const App = (() => {
       const hitWindow = readBoundedNumber(winInput, 80, 400, Game.getWindow());
       const volume = readBoundedNumber(volInput, 0, 100, Math.round(MidiPlayer.getVolume() * 100));
 
-      ESP32.setIP(espIp.value.trim());
-      ESP32.setPollInterval(parseInt(pollInput.value, 10));
       Game.setSpeed(speed);
       MidiPlayer.setTempo(tempo / 100);
       Game.setWindow(hitWindow);
@@ -265,12 +259,15 @@ const App = (() => {
       winVal.textContent = hitWindow;
       volVal.textContent = volume + '%';
 
-      // Also sync diag IP input
-      const diagIp = document.getElementById('esp-ip-input');
-      if (diagIp) diagIp.value = espIp.value.trim();
-
       saveBtn.textContent = '✓ Сохранено';
       setTimeout(() => { saveBtn.textContent = 'Сохранить'; }, 1500);
+    });
+
+    bluetoothButton?.addEventListener('click', async () => {
+      bluetoothButton.disabled = true;
+      try { await ESP32.connect(); bluetoothButton.textContent = '✓ FlortteGlove подключена'; }
+      catch (_) { bluetoothButton.textContent = ESP32.lastError || 'Ошибка Bluetooth'; }
+      finally { bluetoothButton.disabled = false; }
     });
   }
 
@@ -288,6 +285,14 @@ const App = (() => {
     nav('game-back',     'home');
     nav('diag-back',     'home');
     nav('settings-back', 'home');
+
+    document.getElementById('btn-bluetooth-connect')?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try { await ESP32.connect(); button.textContent = '✓ FlortteGlove подключена'; }
+      catch (_) { button.textContent = 'Повторить подключение'; }
+      finally { button.disabled = false; }
+    });
 
     // Game back — also stop game
     document.getElementById('game-back')?.addEventListener('click', () => {

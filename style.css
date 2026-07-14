@@ -462,7 +462,7 @@ input.input-error { border-color: var(--red); box-shadow: 0 0 0 2px #ef444422; }
 
 .diag-body { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 16px; }
 
-.diag-cards { display: flex; gap: 10px; }
+.diag-cards { display: flex; flex-wrap: wrap; gap: 10px; }
 .diag-card {
   flex: 1; background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--r); padding: 14px 12px;
@@ -471,6 +471,8 @@ input.input-error { border-color: var(--red); box-shadow: 0 0 0 2px #ef444422; }
 .diag-card:nth-child(1) { border-top: 3px solid var(--lane-0); }
 .diag-card:nth-child(2) { border-top: 3px solid var(--lane-1); }
 .diag-card:nth-child(3) { border-top: 3px solid var(--lane-2); }
+.diag-card:nth-child(4) { border-top: 3px solid #38bdf8; }
+.diag-card:nth-child(5) { border-top: 3px solid #f472b6; }
 .dc-label { font-size: .6rem; letter-spacing: .1em; color: var(--text-3); font-family: var(--font-data); }
 .dc-value { font-family: var(--font-data); font-size: 1.3rem; font-weight: 700; }
 .dc-bar   { height: 4px; background: var(--bg-3); border-radius: 2px; overflow: hidden; }
@@ -478,6 +480,8 @@ input.input-error { border-color: var(--red); box-shadow: 0 0 0 2px #ef444422; }
 .diag-card:nth-child(1) .dc-fill { background: var(--lane-0); }
 .diag-card:nth-child(2) .dc-fill { background: var(--lane-1); }
 .diag-card:nth-child(3) .dc-fill { background: var(--lane-2); }
+.diag-card:nth-child(4) .dc-fill { background: #38bdf8; }
+.diag-card:nth-child(5) .dc-fill { background: #f472b6; }
 .dc-gesture { font-size: .7rem; color: var(--text-2); min-height: 16px; }
 
 .diag-detected {
