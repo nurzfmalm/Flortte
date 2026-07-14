@@ -1,6 +1,10 @@
 node_modules/
 dist/
 release/
+.mobile-web/
+android/
+ios/
+.icon-venv/
 .vscode/
 *.log
 .DS_Store
