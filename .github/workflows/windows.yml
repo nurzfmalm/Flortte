@@ -1,4 +1,4 @@
-name: Windows build
+name: Build installers
 
 on:
   workflow_dispatch:
@@ -9,8 +9,12 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: read
+
 jobs:
-  build:
+  windows:
+    name: Windows EXE
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,4 +29,113 @@ jobs:
         with:
           name: Flortte-Windows
           path: dist/Flortte-Setup-*.exe
+          if-no-files-found: error
+
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npm test
+      - name: Prepare mobile web bundle
+        shell: bash
+        run: |
+          rm -rf .mobile-web android
+          mkdir -p .mobile-web
+          cp index.html style.css .mobile-web/
+          cp -R assets js .mobile-web/
+      - name: Install mobile build tools
+        run: npm install --no-save --package-lock=false @capacitor/core@8 @capacitor/cli@8 @capacitor/android@8 @capacitor/assets@3
+      - name: Create Android project
+        run: |
+          npx cap add android
+          npx cap sync android
+      - name: Generate Android icon from build/icon.ico
+        shell: bash
+        run: |
+          python3 -m venv .icon-venv
+          .icon-venv/bin/pip install Pillow
+          .icon-venv/bin/python -c "from PIL import Image; im=Image.open('build/icon.ico'); im.size=max(im.ico.sizes(), key=lambda s: s[0]*s[1]); im.convert('RGBA').resize((1024, 1024), Image.Resampling.LANCZOS).save('assets/icon-only.png')"
+          npx capacitor-assets generate --android
+      - name: Build APK
+        working-directory: android
+        run: ./gradlew assembleDebug
+      - name: Collect APK
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist/Flortte-Android.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Flortte-Android
+          path: dist/Flortte-Android.apk
+          if-no-files-found: error
+
+  apple:
+    name: macOS DMG and iPhone IPA
+    runs-on: macos-26
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Convert build/icon.ico for Apple platforms
+        shell: bash
+        run: |
+          python3 -m venv .icon-venv
+          .icon-venv/bin/pip install Pillow
+          .icon-venv/bin/python -c "from PIL import Image; im=Image.open('build/icon.ico'); im.size=max(im.ico.sizes(), key=lambda s: s[0]*s[1]); im.convert('RGBA').resize((1024, 1024), Image.Resampling.LANCZOS).save('assets/icon-only.png')"
+          mkdir -p build/icon.iconset
+          for size in 16 32 128 256 512; do
+            sips -z "$size" "$size" assets/icon-only.png --out "build/icon.iconset/icon_${size}x${size}.png"
+            double=$((size * 2))
+            sips -z "$double" "$double" assets/icon-only.png --out "build/icon.iconset/icon_${size}x${size}@2x.png"
+          done
+          iconutil -c icns build/icon.iconset -o build/icon.icns
+      - name: Build macOS DMG
+        run: npm run build:mac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Flortte-macOS
+          path: dist/Flortte-*-macOS-*.dmg
+          if-no-files-found: error
+      - name: Prepare mobile web bundle
+        shell: bash
+        run: |
+          rm -rf .mobile-web ios
+          mkdir -p .mobile-web
+          cp index.html style.css .mobile-web/
+          cp -R assets js .mobile-web/
+      - name: Install iPhone build tools
+        run: npm install --no-save --package-lock=false @capacitor/core@8 @capacitor/cli@8 @capacitor/ios@8 @capacitor/assets@3
+      - name: Create iPhone project and icons
+        run: |
+          npx cap add ios
+          npx cap sync ios
+          npx capacitor-assets generate --ios
+          /usr/libexec/PlistBuddy -c "Add :NSBluetoothAlwaysUsageDescription string Flortte подключается к перчатке по Bluetooth" ios/App/App/Info.plist
+      - name: Build unsigned iPhone app
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -sdk iphoneos -derivedDataPath ios/build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          mkdir -p ios/Payload
+          cp -R ios/build/Build/Products/Release-iphoneos/App.app ios/Payload/Flortte.app
+          cd ios
+          zip -qry ../dist/Flortte-iPhone-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Flortte-iPhone-unsigned
+          path: dist/Flortte-iPhone-unsigned.ipa
           if-no-files-found: error
