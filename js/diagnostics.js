@@ -1,221 +1,269 @@
-/**
- * diagnostics.js — Real-time sensor graph + status display
- *
- * Called by app.js:
- *   Diagnostics.init()    — one-time setup
- *   Diagnostics.enter()   — screen became active
- *   Diagnostics.leave()   — screen hidden
- */
-
+/** Live graph and guided five-finger hardware diagnostic. */
 const Diagnostics = (() => {
-  const HISTORY_LEN = 200;   // samples kept in ring buffer
+  const HISTORY_LEN = 200;
+  const OPEN_CAPTURE_MS = 2500;
+  const PREPARE_MS = 2000;
+  const FINGER_CAPTURE_MS = 5000;
   const COLORS = ['#7c3aed', '#22d3a0', '#f59e0b', '#38bdf8', '#f472b6'];
   const SENSOR_KEYS = ['keyPinch', 'indexThumb', 'middleThumb', 'ring', 'little'];
-  const SENSOR_LABELS = ['БОЛЬШОЙ', 'УКАЗАТЕЛЬНЫЙ', 'СРЕДНИЙ', 'БЕЗЫМЯННЫЙ', 'МИЗИНЕЦ'];
+  const SENSOR_LABELS = ['Большой', 'Указательный', 'Средний', 'Безымянный', 'Мизинец'];
   const MAX_ADC = 4095;
 
-  let _canvas, _ctx2d;
-  let _active = false;
-  let _raf    = null;
-
-  // Ring buffers
   const _history = SENSOR_KEYS.map(() => new Float32Array(HISTORY_LEN));
   let _histIdx = 0;
-
-  // DOM refs (lazily grabbed)
-  let _dcv   = [];   // .dc-value spans
-  let _dcf   = [];   // .dc-fill divs
-  let _dcg   = [];   // .dc-gesture spans
-  let _thresholdInputs = [];
-  let _ddGesture, _ddNote, _statusDot;
-  let _calibrationStatus, _calibrateButton;
-  let _captureBentButton, _captureOpenButton, _cancelCalibrationButton;
-  let _calibrationSteps = [];
-  let _isCalibrating = false;
+  let _canvas;
+  let _ctx2d;
+  let _active = false;
+  let _raf = null;
+  let _runId = 0;
+  let _phase = { kind: 'idle', fingerIndex: -1 };
+  let _openSamples = SENSOR_KEYS.map(() => []);
+  let _captureSamples = SENSOR_KEYS.map(() => []);
+  let _results = Array(SENSOR_KEYS.length).fill(null);
+  let _dcv = [];
+  let _dcf = [];
+  let _dcg = [];
+  let _ddGesture;
+  let _ddNote;
+  let _statusDot;
+  let _instruction;
+  let _overall;
+  let _progress;
+  let _resultsContainer;
+  let _startButton;
+  let _cancelButton;
+  let _reconnectButton;
 
   function _grabDom() {
-    _dcv = SENSOR_KEYS.map((_, i) => document.getElementById(`dcv-${i}`));
-    _dcf = SENSOR_KEYS.map((_, i) => document.getElementById(`dcf-${i}`));
-    _dcg = SENSOR_KEYS.map((_, i) => document.getElementById(`dcg-${i}`));
-    _thresholdInputs = SENSOR_KEYS.map((_, index) => ({
-      bend: document.getElementById(`threshold-bend-${index}`),
-      release: document.getElementById(`threshold-release-${index}`),
-    }));
-    _calibrationStatus = document.getElementById('calibration-status');
-    _calibrateButton = document.getElementById('btn-calibrate');
-    _captureBentButton = document.getElementById('btn-capture-bent');
-    _captureOpenButton = document.getElementById('btn-capture-open');
-    _cancelCalibrationButton = document.getElementById('btn-cancel-calibration');
-    _calibrationSteps = Array.from(document.querySelectorAll('#calibration-steps li'));
-    _ddGesture  = document.getElementById('dd-gesture');
-    _ddNote     = document.getElementById('dd-note');
-    _statusDot  = document.getElementById('diag-status-dot');
-    _canvas     = document.getElementById('diag-canvas');
-    _ctx2d      = _canvas.getContext('2d');
+    _dcv = SENSOR_KEYS.map((_, index) => document.getElementById(`dcv-${index}`));
+    _dcf = SENSOR_KEYS.map((_, index) => document.getElementById(`dcf-${index}`));
+    _dcg = SENSOR_KEYS.map((_, index) => document.getElementById(`dcg-${index}`));
+    _ddGesture = document.getElementById('dd-gesture');
+    _ddNote = document.getElementById('dd-note');
+    _statusDot = document.getElementById('diag-status-dot');
+    _instruction = document.getElementById('diag-instruction');
+    _overall = document.getElementById('diag-overall');
+    _progress = document.getElementById('diag-progress');
+    _resultsContainer = document.getElementById('diag-results');
+    _startButton = document.getElementById('btn-diag-start');
+    _cancelButton = document.getElementById('btn-diag-cancel');
+    _reconnectButton = document.getElementById('btn-reconnect');
+    _canvas = document.getElementById('diag-canvas');
+    _ctx2d = _canvas?.getContext('2d');
   }
 
   function _resize() {
     if (!_canvas) return;
     const rect = _canvas.getBoundingClientRect();
-    _canvas.width  = rect.width  * devicePixelRatio;
+    _canvas.width = rect.width * devicePixelRatio;
     _canvas.height = Math.round(180 * devicePixelRatio);
     _canvas.style.height = '180px';
   }
 
-  function _parseAdcValue(value) {
-    const text = String(value ?? '').trim();
-    if (!/^\d+$/.test(text)) return null;
-    const numeric = Number(text);
-    if (!Number.isInteger(numeric) || numeric < 0 || numeric > MAX_ADC) return null;
-    return numeric;
+  function _setOverall(status, text) {
+    if (!_overall) return;
+    _overall.className = `diagnostic-overall ${status}`;
+    _overall.textContent = text;
   }
 
-  function _markInput(input, valid) {
-    if (input) input.classList.toggle('input-error', !valid);
+  function _setRunning(running) {
+    if (_startButton) {
+      _startButton.disabled = running;
+      _startButton.hidden = running;
+    }
+    if (_cancelButton) _cancelButton.hidden = !running;
   }
 
-  function _setCalibrationStatus(text, mode = '') {
-    if (!_calibrationStatus) return;
-    _calibrationStatus.textContent = text;
-    _calibrationStatus.className = `calibration-status ${mode}`.trim();
+  function _progressStatus(index) {
+    if (_phase.kind === 'open' && index === 0) return 'active';
+    if (_phase.kind === 'prepare' && index === _phase.fingerIndex + 1) return 'active';
+    if (_phase.kind === 'capture' && index === _phase.fingerIndex + 1) return 'active';
+    if (index === 0 && _openSamples.some(values => values.length)) return 'pass';
+    if (index > 0 && _results[index - 1]) return _results[index - 1].status;
+    return 'pending';
   }
 
-  function _setCalibrationSteps(mode) {
-    const state = {
-      idle: { done: [], active: ['prepare'] },
-      running: { done: ['prepare'], active: ['move'] },
-      done: { done: ['prepare', 'move'], active: ['tune'] },
-      error: { done: [], active: ['prepare'] },
-    }[mode] || { done: [], active: [] };
-
-    _calibrationSteps.forEach((step) => {
-      const key = step.dataset.step;
-      step.classList.toggle('done', state.done.includes(key));
-      step.classList.toggle('active', state.active.includes(key));
+  function _renderProgress() {
+    if (!_progress) return;
+    const labels = ['Открытая ладонь', ...SENSOR_LABELS];
+    _progress.replaceChildren();
+    labels.forEach((label, index) => {
+      const item = document.createElement('div');
+      const status = _progressStatus(index);
+      item.className = `diagnostic-step ${status}`;
+      const marker = document.createElement('span');
+      marker.className = 'diagnostic-step-marker';
+      marker.textContent = status === 'pass' ? '✓' : status === 'warn' ? '!' : status === 'fail' ? '×' : String(index + 1);
+      const text = document.createElement('span');
+      text.textContent = label;
+      item.append(marker, text);
+      _progress.appendChild(item);
     });
   }
 
-  // ── Sensor update ─────────────────────────────────────────
-  function _onSensorData(sensors, status, state) {
+  function _formatNumber(value, digits = 0) {
+    return Number.isFinite(value) ? value.toFixed(digits) : '—';
+  }
+
+  function _appendMetric(container, label, value) {
+    const metric = document.createElement('div');
+    metric.className = 'finger-metric';
+    const name = document.createElement('span');
+    name.textContent = label;
+    const reading = document.createElement('strong');
+    reading.textContent = value;
+    metric.append(name, reading);
+    container.appendChild(metric);
+  }
+
+  function _renderResult(result, fingerIndex) {
+    const card = document.createElement('article');
+    card.className = `finger-result ${result.status}`;
+
+    const header = document.createElement('div');
+    header.className = 'finger-result-header';
+    const title = document.createElement('h3');
+    title.textContent = SENSOR_LABELS[fingerIndex];
+    const badge = document.createElement('span');
+    badge.className = `finger-status ${result.status}`;
+    badge.textContent = result.status === 'pass' ? 'Исправен' : result.status === 'warn' ? 'Есть замечания' : 'Ошибка';
+    header.append(title, badge);
+
+    const summary = document.createElement('p');
+    summary.className = 'finger-summary';
+    summary.textContent = result.status === 'pass'
+      ? 'Сенсор уверенно распознаёт сгибание и возврат.'
+      : result.status === 'warn'
+        ? 'Играть можно, но точность или независимость пальца ниже нормы.'
+        : 'Сенсор не прошёл одну или несколько обязательных проверок.';
+
+    const metrics = document.createElement('div');
+    metrics.className = 'finger-metrics';
+    _appendMetric(metrics, 'Отсчёты', String(result.metrics.samples));
+    _appendMetric(metrics, 'Открытая рука', `${_formatNumber(result.metrics.openMean)} ± ${_formatNumber(result.metrics.openNoise, 1)} ADC`);
+    _appendMetric(metrics, 'Мин. / макс.', `${_formatNumber(result.metrics.min)} / ${_formatNumber(result.metrics.max)}`);
+    _appendMetric(metrics, 'Диапазон', `${_formatNumber(result.metrics.span)} ADC`);
+    _appendMetric(metrics, 'Пороги сгиб / разгиб', `${result.metrics.bendThreshold} / ${result.metrics.releaseThreshold}`);
+    _appendMetric(metrics, 'Сгибания', String(result.metrics.bends));
+    _appendMetric(metrics, 'Крайние значения', `${_formatNumber(result.metrics.railRatio * 100, 1)}%`);
+    const neighbor = result.metrics.largestOtherIndex >= 0
+      ? SENSOR_LABELS[result.metrics.largestOtherIndex].toLowerCase()
+      : 'нет';
+    _appendMetric(metrics, 'Самый активный сосед', `${neighbor}: ${_formatNumber(result.metrics.largestOtherSpan)} ADC`);
+    _appendMetric(metrics, 'Независимость', `${_formatNumber(result.metrics.independence, 2)}×`);
+
+    const checks = document.createElement('div');
+    checks.className = 'check-list';
+    result.checks.forEach((check) => {
+      const row = document.createElement('div');
+      const status = check.passed ? 'pass' : check.level;
+      row.className = `check-item ${status}`;
+      const marker = document.createElement('span');
+      marker.textContent = check.passed ? '✓' : check.level === 'warn' ? '!' : '×';
+      const label = document.createElement('strong');
+      label.textContent = check.label;
+      const detail = document.createElement('span');
+      detail.textContent = check.detail;
+      row.append(marker, label, detail);
+      checks.appendChild(row);
+    });
+
+    const recommendations = document.createElement('div');
+    recommendations.className = 'recommendations';
+    const recommendationTitle = document.createElement('strong');
+    recommendationTitle.textContent = result.status === 'pass' ? 'Итог' : 'Что сделать';
+    const list = document.createElement('ul');
+    result.recommendations.forEach((text) => {
+      const item = document.createElement('li');
+      item.textContent = text;
+      list.appendChild(item);
+    });
+    recommendations.append(recommendationTitle, list);
+
+    card.append(header, summary, metrics, checks, recommendations);
+    return card;
+  }
+
+  function _renderResults() {
+    if (!_resultsContainer) return;
+    _resultsContainer.replaceChildren();
+    _results.forEach((result, index) => {
+      if (result) _resultsContainer.appendChild(_renderResult(result, index));
+    });
+  }
+
+  function _storeSample(sensors) {
+    if (!['open', 'capture'].includes(_phase.kind)) return;
+    const destination = _phase.kind === 'open' ? _openSamples : _captureSamples;
+    SENSOR_KEYS.forEach((key, index) => destination[index].push(Number(sensors[key])));
+  }
+
+  function _onSensorData(sensors, status) {
+    if (status !== 'connected' && ['open', 'prepare', 'capture'].includes(_phase.kind)) {
+      _stopTest('Соединение с перчаткой потеряно. Подключите Bluetooth и запустите проверку заново.', true);
+    }
+    if (status === 'connected') _storeSample(sensors);
     if (!_active) return;
 
-    // Update history ring
-    SENSOR_KEYS.forEach((key, i) => { _history[i][_histIdx] = sensors[key]; });
+    SENSOR_KEYS.forEach((key, index) => {
+      const value = Number(sensors[key]);
+      _history[index][_histIdx] = value;
+      if (_dcv[index]) _dcv[index].textContent = Math.round(value);
+      if (_dcf[index]) _dcf[index].style.width = `${(value / MAX_ADC * 100).toFixed(1)}%`;
+    });
     _histIdx = (_histIdx + 1) % HISTORY_LEN;
 
-    // Update cards
-    SENSOR_KEYS.forEach((key, i) => {
-      const val = sensors[key];
-      const pct = (val / MAX_ADC * 100).toFixed(1);
-      _dcv[i].textContent = Math.round(val);
-      _dcf[i].style.width = pct + '%';
-    });
-
-    // Gesture detection
     const result = Gestures.classify(sensors);
-    _ddGesture.textContent = `${result.gesture.emoji}  ${result.gesture.name}`;
-    _ddNote.textContent    = result.note !== null ? `♩ ${result.noteName} (${result.note})` : '';
-
-    // Per-sensor "active" labels
-    SENSOR_KEYS.forEach((key, i) => {
-      const active = !!result.bits[i];
-      _dcg[i].textContent = active ? '● АКТИВЕН' : '';
-      _dcg[i].style.color = active ? COLORS[i] : '';
+    if (_ddGesture) _ddGesture.textContent = `${result.gesture.emoji}  ${result.gesture.name}`;
+    if (_ddNote) _ddNote.textContent = result.note !== null ? `♩ ${result.noteName} (${result.note})` : '';
+    SENSOR_KEYS.forEach((_, index) => {
+      const active = Boolean(result.bits[index]);
+      if (!_dcg[index]) return;
+      _dcg[index].textContent = active ? '● АКТИВЕН' : '';
+      _dcg[index].style.color = active ? COLORS[index] : '';
     });
-
-    // Connection dot
-    if (_statusDot) {
-      _statusDot.classList.toggle('on', status === 'connected');
-    }
-
-    if (!_isCalibrating) {
-      if (status === 'connected') {
-        _setCalibrationStatus('FlortteGlove подключена по Bluetooth', 'done');
-      } else if (status === 'error') {
-        _setCalibrationStatus('ESP32 не подключена по Bluetooth.', 'error');
-      }
-    }
+    if (_statusDot) _statusDot.classList.toggle('on', status === 'connected');
   }
 
-  // ── Canvas draw ───────────────────────────────────────────
   function _drawGraph() {
     if (!_ctx2d || !_active) return;
-
-    const W = _canvas.width;
-    const H = _canvas.height;
+    const width = _canvas.width;
+    const height = _canvas.height;
     const dpr = devicePixelRatio;
-
-    _ctx2d.clearRect(0, 0, W, H);
-
-    // Background grid
-    _ctx2d.strokeStyle = '#252b3d';
-    _ctx2d.lineWidth   = 1;
-    for (let g = 0; g <= 4; g++) {
-      const y = H * (1 - g / 4);
+    _ctx2d.clearRect(0, 0, width, height);
+    _ctx2d.strokeStyle = '#dbe3f5';
+    _ctx2d.lineWidth = 1;
+    for (let grid = 0; grid <= 4; grid++) {
+      const y = height * (1 - grid / 4);
       _ctx2d.beginPath();
-      _ctx2d.moveTo(0, y); _ctx2d.lineTo(W, y);
+      _ctx2d.moveTo(0, y);
+      _ctx2d.lineTo(width, y);
       _ctx2d.stroke();
-      // Label
-      _ctx2d.fillStyle = '#4a5068';
+      _ctx2d.fillStyle = '#77839b';
       _ctx2d.font = `${10 * dpr}px Consolas, "Courier New", monospace`;
-      _ctx2d.fillText(Math.round((g / 4) * MAX_ADC), 4 * dpr, y - 3 * dpr);
+      _ctx2d.fillText(Math.round((grid / 4) * MAX_ADC), 4 * dpr, y - 3 * dpr);
     }
-
-    // Per-sensor threshold lines
-    SENSOR_KEYS.forEach((key, i) => {
-      const thresholds = Gestures.getThresholdPair(key);
-      const bendY = H * (1 - thresholds.bend / MAX_ADC);
-      const releaseY = H * (1 - thresholds.release / MAX_ADC);
-
-      _ctx2d.strokeStyle = COLORS[i] + '88';
-      _ctx2d.setLineDash([]);
-      _ctx2d.lineWidth = 1.5;
+    for (let sensor = 0; sensor < SENSOR_KEYS.length; sensor++) {
+      _ctx2d.strokeStyle = COLORS[sensor];
+      _ctx2d.lineWidth = 2 * dpr;
       _ctx2d.beginPath();
-      _ctx2d.moveTo(0, bendY);
-      _ctx2d.lineTo(W, bendY);
-      _ctx2d.stroke();
-      _ctx2d.fillStyle = COLORS[i];
-      _ctx2d.font = `${9 * dpr}px Consolas, "Courier New", monospace`;
-      _ctx2d.fillText(`сг ${thresholds.bend}`, W - 56 * dpr, bendY - 3 * dpr);
-
-      _ctx2d.strokeStyle = COLORS[i] + '55';
-      _ctx2d.setLineDash([6 * dpr, 4 * dpr]);
-      _ctx2d.beginPath();
-      _ctx2d.moveTo(0, releaseY);
-      _ctx2d.lineTo(W, releaseY);
-      _ctx2d.stroke();
-      _ctx2d.setLineDash([]);
-      _ctx2d.fillText(`раз ${thresholds.release}`, W - 64 * dpr, releaseY - 3 * dpr);
-    });
-
-    // Draw sensor lines
-    for (let s = 0; s < SENSOR_KEYS.length; s++) {
-      _ctx2d.strokeStyle = COLORS[s];
-      _ctx2d.lineWidth   = 2 * dpr;
-      _ctx2d.shadowColor = COLORS[s];
-      _ctx2d.shadowBlur  = 4 * dpr;
-      _ctx2d.beginPath();
-
-      for (let i = 0; i < HISTORY_LEN; i++) {
-        const idx = (_histIdx + i) % HISTORY_LEN;
-        const x = (i / (HISTORY_LEN - 1)) * W;
-        const y = H * (1 - _history[s][idx] / MAX_ADC);
-        if (i === 0) _ctx2d.moveTo(x, y);
-        else         _ctx2d.lineTo(x, y);
+      for (let index = 0; index < HISTORY_LEN; index++) {
+        const ringIndex = (_histIdx + index) % HISTORY_LEN;
+        const x = index / (HISTORY_LEN - 1) * width;
+        const y = height * (1 - _history[sensor][ringIndex] / MAX_ADC);
+        if (index === 0) _ctx2d.moveTo(x, y);
+        else _ctx2d.lineTo(x, y);
       }
       _ctx2d.stroke();
-      _ctx2d.shadowBlur = 0;
     }
-
-    // Legend
-    let lx = 8 * dpr;
+    let legendX = 8 * dpr;
     _ctx2d.font = `${9 * dpr}px Consolas, "Courier New", monospace`;
-    for (let s = 0; s < SENSOR_KEYS.length; s++) {
-      _ctx2d.fillStyle = COLORS[s];
-      _ctx2d.fillRect(lx, 6 * dpr, 16 * dpr, 2 * dpr);
-      _ctx2d.fillText(SENSOR_LABELS[s], lx + 22 * dpr, 12 * dpr);
-      lx += (SENSOR_LABELS[s].length * 6 + 34) * dpr;
-    }
+    SENSOR_LABELS.forEach((label, index) => {
+      _ctx2d.fillStyle = COLORS[index];
+      _ctx2d.fillRect(legendX, 6 * dpr, 16 * dpr, 2 * dpr);
+      _ctx2d.fillText(label.toUpperCase(), legendX + 22 * dpr, 12 * dpr);
+      legendX += (label.length * 6 + 34) * dpr;
+    });
   }
 
   function _rafLoop() {
@@ -223,121 +271,136 @@ const Diagnostics = (() => {
     if (_active) _raf = requestAnimationFrame(_rafLoop);
   }
 
-  function _showCalibrationAction(step) {
-    if (_captureBentButton) _captureBentButton.hidden = step !== 'bent';
-    if (_captureOpenButton) _captureOpenButton.hidden = step !== 'open';
-    if (_cancelCalibrationButton) _cancelCalibrationButton.hidden = step === 'idle';
-    if (_calibrateButton) _calibrateButton.hidden = step !== 'idle';
+  function _wait(milliseconds, runId) {
+    return new Promise((resolve) => {
+      const startedAt = Date.now();
+      const update = () => {
+        if (runId !== _runId) return resolve(false);
+        const remaining = Math.max(0, milliseconds - (Date.now() - startedAt));
+        if (_instruction) _instruction.dataset.seconds = String(Math.ceil(remaining / 1000));
+        if (remaining === 0) return resolve(true);
+        setTimeout(update, Math.min(250, remaining));
+      };
+      update();
+    });
   }
 
-  async function _sendCalibrationStep(action) {
-    if (_isCalibrating && action === 'start') return;
-    _isCalibrating = true;
+  async function _runTimedPhase(kind, fingerIndex, milliseconds, message, runId) {
+    _phase = { kind, fingerIndex };
+    if (_instruction) {
+      _instruction.textContent = message;
+      _instruction.className = 'diagnostic-instruction running';
+    }
+    _renderProgress();
+    return _wait(milliseconds, runId);
+  }
 
+  function _finishTest() {
+    _phase = { kind: 'done', fingerIndex: -1 };
+    _setRunning(false);
+    _renderProgress();
+    const status = DiagnosticMetrics.overall(_results);
     const messages = {
-      start: 'Согните все подключенные пальцы до максимума.',
-      bent: 'Сгиб сохранён. Теперь полностью выпрямите пальцы.',
-      open: 'Калибровка завершена.',
-      cancel: 'Калибровка отменена.',
+      pass: 'Все 5 пальцев исправны',
+      warn: 'Работает, есть замечания',
+      fail: 'Обнаружена ошибка',
     };
-
-    try {
-      await ESP32.calibrate(action);
-
-      if (action === 'start') {
-        _setCalibrationSteps('running');
-        _showCalibrationAction('bent');
-      } else if (action === 'bent') {
-        _setCalibrationSteps('running');
-        _showCalibrationAction('open');
-      } else {
-        _setCalibrationSteps(action === 'open' ? 'done' : 'idle');
-        _showCalibrationAction('idle');
-        _isCalibrating = false;
-      }
-
-      _setCalibrationStatus(messages[action], action === 'open' ? 'done' : 'running');
-    } catch (err) {
-      _isCalibrating = false;
-      _showCalibrationAction('idle');
-      _setCalibrationSteps('error');
-      _setCalibrationStatus(`Шаг не выполнен: ${err.message}`, 'error');
+    _setOverall(status, messages[status]);
+    if (_instruction) {
+      _instruction.className = `diagnostic-instruction ${status}`;
+      _instruction.textContent = status === 'pass'
+        ? 'Проверка завершена. Перчатка готова к игре.'
+        : 'Проверка завершена. Откройте результат каждого пальца ниже и выполните рекомендации.';
+      delete _instruction.dataset.seconds;
     }
   }
 
-  async function _runCalibration() {
-    await _sendCalibrationStep('start');
+  function _stopTest(message = 'Проверка остановлена.', failed = false) {
+    if (!['open', 'prepare', 'capture'].includes(_phase.kind)) return;
+    _runId++;
+    _phase = { kind: 'stopped', fingerIndex: -1 };
+    _setRunning(false);
+    _setOverall(failed ? 'fail' : 'idle', failed ? 'Проверка прервана' : 'Проверка остановлена');
+    if (_instruction) {
+      _instruction.className = `diagnostic-instruction ${failed ? 'fail' : ''}`.trim();
+      _instruction.textContent = message;
+      delete _instruction.dataset.seconds;
+    }
+    _renderProgress();
   }
 
-  // ── Threshold text inputs ──────────────────────────────────
-  function _bindControls() {
-    const syncThresholdControls = (index) => {
-      const key = SENSOR_KEYS[index];
-      const thresholds = Gestures.getThresholdPair(key);
-      const inputs = _thresholdInputs[index];
-      if (!inputs) return;
-
-      if (inputs.bend) inputs.bend.value = thresholds.bend;
-      if (inputs.release) inputs.release.value = thresholds.release;
-      _markInput(inputs.bend, true);
-      _markInput(inputs.release, true);
-    };
-
-    const applyThresholdInput = (index, type, syncAfter = false) => {
-      const key = SENSOR_KEYS[index];
-      const input = _thresholdInputs[index]?.[type];
-      if (!input) return;
-
-      const numeric = _parseAdcValue(input.value);
-      if (numeric === null) {
-        _markInput(input, false);
-        return;
+  async function _startTest() {
+    if (ESP32.status !== 'connected') {
+      _setOverall('fail', 'Нет подключения');
+      if (_instruction) {
+        _instruction.className = 'diagnostic-instruction fail';
+        _instruction.textContent = 'Сначала подключите FlortteGlove по Bluetooth. Без реальных данных тест не запускается.';
       }
+      return;
+    }
 
-      Gestures.setThreshold(key, type, numeric);
-      _markInput(input, true);
-      if (syncAfter) syncThresholdControls(index);
-    };
+    const runId = ++_runId;
+    _openSamples = SENSOR_KEYS.map(() => []);
+    _captureSamples = SENSOR_KEYS.map(() => []);
+    _results = Array(SENSOR_KEYS.length).fill(null);
+    _resultsContainer?.replaceChildren();
+    _setRunning(true);
+    _setOverall('running', 'Проверка идёт');
 
-    SENSOR_KEYS.forEach((key, i) => {
-      syncThresholdControls(i);
+    let continued = await _runTimedPhase(
+      'open', -1, OPEN_CAPTURE_MS,
+      'Полностью выпрямите все пальцы и держите ладонь неподвижно.', runId
+    );
+    if (!continued) return;
 
-      ['bend', 'release'].forEach((type) => {
-        const input = _thresholdInputs[i]?.[type];
-        if (!input) return;
-        input.addEventListener('input', () => applyThresholdInput(i, type, false));
-        input.addEventListener('change', () => applyThresholdInput(i, type, true));
-        input.addEventListener('blur', () => {
-          if (_parseAdcValue(input.value) === null) {
-            syncThresholdControls(i);
-            return;
-          }
-          applyThresholdInput(i, type, true);
-        });
+    for (let fingerIndex = 0; fingerIndex < SENSOR_KEYS.length; fingerIndex++) {
+      continued = await _runTimedPhase(
+        'prepare', fingerIndex, PREPARE_MS,
+        `Приготовьтесь проверить ${SENSOR_LABELS[fingerIndex].toLowerCase()} палец. Остальные пальцы держите прямо.`, runId
+      );
+      if (!continued) return;
+
+      _captureSamples = SENSOR_KEYS.map(() => []);
+      continued = await _runTimedPhase(
+        'capture', fingerIndex, FINGER_CAPTURE_MS,
+        `Согните и полностью разогните ${SENSOR_LABELS[fingerIndex].toLowerCase()} палец минимум 3 раза. Остальные не двигайте.`, runId
+      );
+      if (!continued) return;
+
+      _results[fingerIndex] = DiagnosticMetrics.analyzeFinger({
+        openSamples: _openSamples,
+        captureSamples: _captureSamples,
+        fingerIndex,
+        thresholds: Gestures.getThresholdPair(SENSOR_KEYS[fingerIndex]),
       });
-    });
-
-    _calibrateButton?.addEventListener('click', _runCalibration);
-    _captureBentButton?.addEventListener('click', () => _sendCalibrationStep('bent'));
-    _captureOpenButton?.addEventListener('click', () => _sendCalibrationStep('open'));
-    _cancelCalibrationButton?.addEventListener('click', () => _sendCalibrationStep('cancel'));
-
-    const btnRecon = document.getElementById('btn-reconnect');
-    btnRecon?.addEventListener('click', async () => {
-      btnRecon.disabled = true;
-      try { await ESP32.connect(); }
-      catch (err) { _setCalibrationStatus(`Bluetooth: ${ESP32.lastError || err.message}`, 'error'); }
-      finally { btnRecon.disabled = false; }
-    });
-
-    _showCalibrationAction('idle');
-    _setCalibrationSteps('idle');
+      _renderResults();
+      _renderProgress();
+    }
+    if (runId === _runId) _finishTest();
   }
 
-  // ── Public ────────────────────────────────────────────────
+  function _bindControls() {
+    _startButton?.addEventListener('click', _startTest);
+    _cancelButton?.addEventListener('click', () => _stopTest());
+    _reconnectButton?.addEventListener('click', async () => {
+      _reconnectButton.disabled = true;
+      try {
+        await ESP32.connect();
+        _instruction.textContent = 'Перчатка подключена. Нажмите «Начать проверку».';
+        _instruction.className = 'diagnostic-instruction pass';
+      } catch (error) {
+        _instruction.textContent = `Bluetooth: ${ESP32.lastError || error.message}`;
+        _instruction.className = 'diagnostic-instruction fail';
+      } finally {
+        _reconnectButton.disabled = false;
+      }
+    });
+  }
+
   function init() {
     _grabDom();
     _resize();
+    _renderProgress();
     window.addEventListener('resize', _resize);
     ESP32.onData(_onSensorData);
     _bindControls();
@@ -353,6 +416,7 @@ const Diagnostics = (() => {
     _active = false;
     cancelAnimationFrame(_raf);
     _raf = null;
+    _stopTest('Проверка остановлена при выходе из диагностики.');
   }
 
   return { init, enter, leave };
