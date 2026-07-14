@@ -315,10 +315,11 @@ const App = (() => {
       '2': { bits: [1,0,0,0,0], label: '2. Только большой' },
       '3': { bits: [0,1,0,0,0], label: '3. Только указательный' },
       '4': { bits: [0,1,1,0,0], label: '4. Указательный + средний' },
-      '5': { bits: [0,0,0,1,0], label: '5. Только безымянный' },
-      '6': { bits: [0,0,0,0,1], label: '6. Только мизинец' },
+      '5': { bits: [0,1,1,1,0], label: 'Три пальца без большого и мизинца' },
+      '6': { bits: [0,1,1,1,1], label: 'Четыре пальца без большого' },
       '8': { bits: [1,1,1,0,0], label: '8. Указательный + средний + большой' },
-      '0': { bits: [0,0,0,0,0], label: 'Открытая рука' },
+      '0': { bits: [0,0,0,0,0], label: 'Кулак' },
+      '9': { bits: [1,1,1,1,1], label: 'Открытая ладонь' },
     };
 
     const comboByCode = {
@@ -330,6 +331,7 @@ const App = (() => {
       Digit5: comboByKey['5'],
       Digit6: comboByKey['6'],
       Digit8: comboByKey['8'],
+      Digit9: comboByKey['9'],
       Numpad0: comboByKey['0'],
       Numpad1: comboByKey['1'],
       Numpad2: comboByKey['2'],
@@ -338,6 +340,7 @@ const App = (() => {
       Numpad5: comboByKey['5'],
       Numpad6: comboByKey['6'],
       Numpad8: comboByKey['8'],
+      Numpad9: comboByKey['9'],
     };
 
     const heldFingerBits = [0, 0, 0, 0, 0];

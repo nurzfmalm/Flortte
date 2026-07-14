@@ -107,7 +107,7 @@
 
       <div class="game-live">
         <div class="game-assist-title">ПАЛЬЦЫ</div>
-        <div class="game-current" id="game-current-gesture">Открытая рука</div>
+    <div class="game-current" id="game-current-gesture">Кулак</div>
         <div class="game-finger-values">
           <div class="game-finger-meter" data-finger="0">
             <span class="game-finger-label">Большой</span>
@@ -141,7 +141,7 @@
     <canvas id="game-canvas"></canvas>
 
     <div class="piano-row" id="piano-row">
-      <!-- 7 one-hand gesture lanes -->
+      <!-- 9 image-backed one-hand gesture lanes -->
       <div class="lane-key" data-lane="0">
         <span class="lane-gesture-icon" id="lane-icon-0">1</span>
         <span class="lane-label">1. УКАЗ+БОЛЬШ</span>
@@ -160,15 +160,23 @@
       </div>
       <div class="lane-key" data-lane="4">
         <span class="lane-gesture-icon" id="lane-icon-4">5</span>
-        <span class="lane-label">5. БЕЗЫМЯННЫЙ</span>
+        <span class="lane-label">ТРИ ПАЛЬЦА</span>
       </div>
       <div class="lane-key" data-lane="5">
         <span class="lane-gesture-icon" id="lane-icon-5">6</span>
-        <span class="lane-label">6. МИЗИНЕЦ</span>
+        <span class="lane-label">ЧЕТЫРЕ ПАЛЬЦА</span>
       </div>
       <div class="lane-key" data-lane="6">
         <span class="lane-gesture-icon" id="lane-icon-6">8</span>
         <span class="lane-label">8. ТРИ ПАЛЬЦА</span>
+      </div>
+      <div class="lane-key" data-lane="7">
+        <span class="lane-gesture-icon" id="lane-icon-7">0</span>
+        <span class="lane-label">КУЛАК</span>
+      </div>
+      <div class="lane-key" data-lane="8">
+        <span class="lane-gesture-icon" id="lane-icon-8">9</span>
+        <span class="lane-label">ОТКРЫТАЯ ЛАДОНЬ</span>
       </div>
     </div>
 
@@ -371,7 +379,7 @@
       </div>
       <div class="setting-group">
         <h3>Маппинг жестов</h3>
-        <p class="setting-hint">Сгибание включает палец при низком значении сенсора, разгибание отпускает палец при высоком значении. В игре реальные MIDI-ноты песни распределяются по лейнам от низких к высоким.</p>
+        <p class="setting-hint">В игре используются только девять жестов с картинками. Реальные MIDI-ноты песни распределяются по лейнам от низких к высоким.</p>
         <div class="gesture-map-table">
           <div class="gmt-row header">
             <span>Жест</span><span>Лейн</span><span>Высота в песне</span><span>Клавиши</span>
@@ -380,9 +388,11 @@
           <div class="gmt-row"><span>2. Только большой</span><span>1</span><span>низкие</span><span>A / 2</span></div>
           <div class="gmt-row"><span>3. Только указательный</span><span>2</span><span>средние</span><span>S / 3</span></div>
           <div class="gmt-row"><span>4. Указательный + средний</span><span>3</span><span>высокие</span><span>S+D / 4</span></div>
-          <div class="gmt-row"><span>5. Только безымянный</span><span>4</span><span>выше</span><span>F / 5</span></div>
-          <div class="gmt-row"><span>6. Только мизинец</span><span>5</span><span>ещё выше</span><span>G / 6</span></div>
-          <div class="gmt-row"><span>8. Указательный + средний + большой</span><span>6</span><span>самые высокие</span><span>A+S+D / 8</span></div>
+          <div class="gmt-row"><span>Три пальца без большого и мизинца</span><span>4</span><span>выше</span><span>S+D+F / 5</span></div>
+          <div class="gmt-row"><span>Четыре пальца без большого</span><span>5</span><span>ещё выше</span><span>S+D+F+G / 6</span></div>
+          <div class="gmt-row"><span>8. Указательный + средний + большой</span><span>6</span><span>высокие</span><span>A+S+D / 8</span></div>
+          <div class="gmt-row"><span>Кулак</span><span>7</span><span>очень высокие</span><span>0</span></div>
+          <div class="gmt-row"><span>Открытая ладонь</span><span>8</span><span>самые высокие</span><span>A+S+D+F+G / 9</span></div>
         </div>
       </div>
       <button class="btn-primary" id="settings-save">Сохранить</button>

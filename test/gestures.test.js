@@ -28,9 +28,29 @@ const sensors = (bits) => ({
   little: bits[4] ? bent : open,
 });
 
-assert.strictEqual(context.Gestures.classify(sensors([0, 0, 0, 1, 0])).gesture.id, 'gesture-5');
-assert.strictEqual(context.Gestures.classify(sensors([0, 0, 0, 0, 1])).gesture.id, 'gesture-6');
-assert.strictEqual(context.Gestures.classify(sensors([0, 0, 0, 0, 0])).gesture.id, 'open');
-assert.strictEqual(context.Gestures.laneCount(), 7);
+const expectedGestures = [
+  ['gesture-1', [1, 1, 0, 0, 0]],
+  ['gesture-2', [1, 0, 0, 0, 0]],
+  ['gesture-3', [0, 1, 0, 0, 0]],
+  ['gesture-4', [0, 1, 1, 0, 0]],
+  ['three-raised', [0, 1, 1, 1, 0]],
+  ['four-raised', [0, 1, 1, 1, 1]],
+  ['gesture-8', [1, 1, 1, 0, 0]],
+  ['fist', [0, 0, 0, 0, 0]],
+  ['open-hand', [1, 1, 1, 1, 1]],
+];
 
-console.log('Five-finger gesture mapping passed.');
+expectedGestures.forEach(([id, bits]) => {
+  assert.strictEqual(context.Gestures.classify(sensors(bits)).gesture.id, id);
+});
+
+assert.strictEqual(context.Gestures.classify(sensors([0, 0, 0, 1, 0])).gesture.id, 'unsupported');
+assert.strictEqual(context.Gestures.classify(sensors([0, 0, 0, 0, 1])).gesture.id, 'unsupported');
+assert.strictEqual(context.Gestures.laneCount(), 9);
+assert.ok(context.Gestures.playableGestures().every(gesture => gesture.image));
+
+context.Gestures.playableGestures().forEach((gesture) => {
+  assert.ok(fs.existsSync(path.join(__dirname, '..', gesture.image)), `Missing image for ${gesture.id}`);
+});
+
+console.log('Nine image-backed gesture mappings passed.');
