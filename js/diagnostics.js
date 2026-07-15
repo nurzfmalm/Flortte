@@ -33,6 +33,11 @@ const Diagnostics = (() => {
   let _startButton;
   let _cancelButton;
   let _reconnectButton;
+  let _playerResultOverall;
+  let _playerResultEmpty;
+  let _playerResultContent;
+  let _playerResultSummary;
+  let _playerFingerResults;
 
   function _grabDom() {
     _dcv = SENSOR_KEYS.map((_, index) => document.getElementById(`dcv-${index}`));
@@ -48,6 +53,11 @@ const Diagnostics = (() => {
     _startButton = document.getElementById('btn-diag-start');
     _cancelButton = document.getElementById('btn-diag-cancel');
     _reconnectButton = document.getElementById('btn-reconnect');
+    _playerResultOverall = document.getElementById('player-result-overall');
+    _playerResultEmpty = document.getElementById('player-result-empty');
+    _playerResultContent = document.getElementById('player-result-content');
+    _playerResultSummary = document.getElementById('player-result-summary');
+    _playerFingerResults = document.getElementById('player-finger-results');
     _canvas = document.getElementById('diag-canvas');
     _ctx2d = _canvas?.getContext('2d');
   }
@@ -114,6 +124,79 @@ const Diagnostics = (() => {
     reading.textContent = value;
     metric.append(name, reading);
     container.appendChild(metric);
+  }
+
+  function _playerResultStatus(percent) {
+    if (percent >= 80) return 'pass';
+    if (percent >= 50) return 'warn';
+    return 'fail';
+  }
+
+  function _appendPlayerSummary(label, value) {
+    const item = document.createElement('div');
+    item.className = 'player-summary-item';
+    const name = document.createElement('span');
+    name.textContent = label;
+    const reading = document.createElement('strong');
+    reading.textContent = value;
+    item.append(name, reading);
+    _playerResultSummary?.appendChild(item);
+  }
+
+  function _renderPlayerResults() {
+    const result = GameResults.latest();
+    if (!result) {
+      if (_playerResultOverall) {
+        _playerResultOverall.className = 'diagnostic-overall idle';
+        _playerResultOverall.textContent = 'Нет результата';
+      }
+      if (_playerResultEmpty) _playerResultEmpty.hidden = false;
+      if (_playerResultContent) _playerResultContent.hidden = true;
+      return;
+    }
+
+    const status = _playerResultStatus(result.successPercent);
+    if (_playerResultOverall) {
+      _playerResultOverall.className = `diagnostic-overall ${status}`;
+      _playerResultOverall.textContent = `${result.successPercent}% успеха`;
+    }
+    if (_playerResultEmpty) _playerResultEmpty.hidden = true;
+    if (_playerResultContent) _playerResultContent.hidden = false;
+
+    _playerResultSummary?.replaceChildren();
+    _appendPlayerSummary('Игра', result.songName);
+    _appendPlayerSummary('Счёт', Number(result.score || 0).toLocaleString('ru-RU'));
+    _appendPlayerSummary('Попадания', `${result.hits} из ${result.totalNotes}`);
+    _appendPlayerSummary('Промахи', String(result.misses));
+    _appendPlayerSummary('Лучшая серия', String(result.maxCombo));
+    _appendPlayerSummary('Завершено', new Date(result.completedAt).toLocaleString('ru-RU'));
+
+    _playerFingerResults?.replaceChildren();
+    (result.fingers || []).forEach((finger, index) => {
+      const card = document.createElement('article');
+      const fingerStatus = finger.successPercent === null ? 'idle' : _playerResultStatus(finger.successPercent);
+      card.className = `player-finger-result ${fingerStatus}`;
+
+      const heading = document.createElement('div');
+      heading.className = 'player-finger-heading';
+      const name = document.createElement('strong');
+      name.textContent = finger.name || SENSOR_LABELS[index];
+      const percent = document.createElement('span');
+      percent.textContent = finger.successPercent === null ? 'Нет нот' : `${finger.successPercent}%`;
+      heading.append(name, percent);
+
+      const progress = document.createElement('div');
+      progress.className = 'player-finger-progress';
+      const fill = document.createElement('div');
+      fill.style.width = `${finger.successPercent || 0}%`;
+      progress.appendChild(fill);
+
+      const details = document.createElement('span');
+      details.className = 'player-finger-details';
+      details.textContent = `${finger.hits} из ${finger.attempts} успешных нот`;
+      card.append(heading, progress, details);
+      _playerFingerResults?.appendChild(card);
+    });
   }
 
   function _renderResult(result, fingerIndex) {
@@ -408,6 +491,7 @@ const Diagnostics = (() => {
 
   function enter() {
     _active = true;
+    _renderPlayerResults();
     _resize();
     _rafLoop();
   }

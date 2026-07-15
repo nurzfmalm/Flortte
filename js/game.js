@@ -39,6 +39,8 @@ const Game = (() => {
   // Score state
   let _score  = 0;
   let _combo  = 0;
+  let _maxCombo = 0;
+  let _resultSession = null;
   let _scoreListeners = [];
   let _endListeners   = [];
 
@@ -334,10 +336,12 @@ const Game = (() => {
                      : bestDist < 120 ? 'GOOD'
                      :                  'OK';
       _combo++;
+      _maxCombo = Math.max(_maxCombo, _combo);
       const points = accuracy === 'PERFECT' ? 100 * Math.min(_combo, 10)
                    : accuracy === 'GOOD'    ?  70 * Math.min(_combo, 10)
                    :                           40;
       _score += points;
+      GameResults.recordHit(_resultSession, best, _gestureForLane);
       _flashes.push({ lane, t: performance.now(), label: accuracy, points });
       _emitScore();
 
@@ -527,6 +531,8 @@ const Game = (() => {
     _tiles     = [];
     _score     = 0;
     _combo     = 0;
+    _maxCombo  = 0;
+    _resultSession = GameResults.createSession(song, _gestureForLane);
     _lastGestureId = 'open';
     _forgivingArmed = true;
     _flashes   = [];
@@ -539,7 +545,15 @@ const Game = (() => {
 
     _playCtl = MidiPlayer.play(song, {
       onNote: () => {}, // audio handled by MidiPlayer, visuals by our loop
-      onEnd:  () => { _active = false; _endListeners.forEach(fn => fn({ score: _score })); },
+      onEnd:  () => {
+        _active = false;
+        const result = GameResults.finalizeSession(_resultSession, {
+          score: _score,
+          maxCombo: _maxCombo,
+        });
+        GameResults.save(result);
+        _endListeners.forEach(fn => fn(result));
+      },
     });
 
     requestAnimationFrame(_draw);
@@ -551,6 +565,7 @@ const Game = (() => {
     if (_playCtl) { _playCtl.stop(); _playCtl = null; }
     _song  = null;
     _tiles = [];
+    _resultSession = null;
     _lastGestureId = 'open';
     _forgivingArmed = true;
     _lastNextSignature = '';
