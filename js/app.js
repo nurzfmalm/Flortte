@@ -8,7 +8,12 @@
 const App = (() => {
   // ── Built-in song catalogue (MIDI files in assets/midi/) ──
   const BUILT_IN_SONGS = [
-    { name: 'Harry Potter Theme', file: 'assets/midi/potter.mid', emoji: '🧙' },
+    {
+      name: 'Harry Potter Theme',
+      file: 'assets/midi/potter.mid',
+      audio: 'assets/audio/potter.mp3',
+      emoji: '🧙',
+    },
   ];
 
   let _currentScreen = 'home';
@@ -124,8 +129,12 @@ const App = (() => {
             try {
               card.querySelector('.song-arrow').textContent = '…';
               const song = await MidiPlayer.loadUrl(entry.file);
+              song.name = entry.name;
+              if (entry.audio) {
+                song.audioUrl = entry.audio;
+                song.audioName = entry.audio.split('/').pop();
+              }
               entry._song = song;
-              entry.name  = song.name;
               _loadedSong = song;
               _renderList();
               showScreen('game');
@@ -174,10 +183,10 @@ const App = (() => {
       comboEl.textContent = combo > 1 ? `x${combo}` : '';
     });
 
-    Game.onEnd(({ score }) => {
+    Game.onEnd(({ score, hits, totalNotes, successPercent }) => {
       _showGameOverlay(
         '🎉 Готово!',
-        `Счёт: ${score.toLocaleString()}`,
+        `Счёт: ${score.toLocaleString()} · Успех: ${successPercent}% · ${hits} из ${totalNotes} нот`,
         'Сыграть ещё',
         () => {
           if (_loadedSong) Game.start(_loadedSong);

@@ -272,6 +272,8 @@ const MidiPlayer = (() => {
 
       if (elapsed >= song.durationMs) {
         _stopped = true;
+        if (audio) audio.pause();
+        if (_activeAudio === audio) _activeAudio = null;
         if (onEnd) onEnd();
         return;
       }

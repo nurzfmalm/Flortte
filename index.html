@@ -239,6 +239,21 @@
 
       <canvas id="diag-canvas"></canvas>
 
+      <section class="player-results" id="player-results">
+        <div class="diagnostic-test-header">
+          <div>
+            <div class="threshold-title">Результаты пользователя</div>
+            <p class="diagnostic-test-copy">Последняя полностью завершённая игра и процент успешных нот для каждого пальца.</p>
+          </div>
+          <span class="diagnostic-overall idle" id="player-result-overall">Нет результата</span>
+        </div>
+        <div class="player-result-empty" id="player-result-empty">Завершите игру, чтобы увидеть личный результат.</div>
+        <div class="player-result-content" id="player-result-content" hidden>
+          <div class="player-result-summary" id="player-result-summary"></div>
+          <div class="player-finger-results" id="player-finger-results"></div>
+        </div>
+      </section>
+
       <section class="diagnostic-test" id="diagnostic-test">
         <div class="diagnostic-test-header">
           <div>
@@ -403,6 +418,7 @@
   <script src="js/esp32.js"></script>
   <script src="js/gestures.js"></script>
   <script src="js/midi.js"></script>
+  <script src="js/game-results.js"></script>
   <script src="js/diagnostic-metrics.js"></script>
   <script src="js/diagnostics.js"></script>
   <script src="js/glove-settings.js"></script>
