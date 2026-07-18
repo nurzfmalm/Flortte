@@ -55,6 +55,7 @@
 
       <div class="home-actions">
         <button class="btn-primary" id="btn-play">▶ Играть</button>
+        <button class="btn-secondary" id="btn-exercise">✋ Создать тренировку</button>
         <button class="btn-secondary" id="btn-diag">⊞ Диагностика</button>
         <button class="btn-ghost" id="btn-settings">⚙ Настройки</button>
       </div>
@@ -69,6 +70,84 @@
     </div>
     <div class="song-list" id="song-list">
       <!-- populated by app.js -->
+    </div>
+  </div>
+
+  <!-- EXERCISE BUILDER -->
+  <div id="screen-exercise" class="screen">
+    <div class="screen-header">
+      <button class="btn-back" id="exercise-back">← Назад</button>
+      <div class="header-copy">
+        <h2>Конструктор тренировки</h2>
+        <p>Выбери жесты под нужные пальцы и поставь их в правильном порядке</p>
+      </div>
+    </div>
+
+    <div class="exercise-builder-body">
+      <section class="exercise-panel exercise-plan-panel">
+        <div class="exercise-section-heading">
+          <div>
+            <span class="exercise-step">1</span>
+            <h3>Параметры</h3>
+          </div>
+          <span class="exercise-save-state" id="exercise-save-state">Сохраняется на устройстве</span>
+        </div>
+
+        <div class="exercise-fields">
+          <label class="exercise-field exercise-name-field">
+            <span>Название</span>
+            <input id="exercise-name" type="text" maxlength="60" value="Моя тренировка" />
+          </label>
+          <label class="exercise-field">
+            <span>Кругов</span>
+            <input id="exercise-repetitions" type="number" min="1" max="10" step="1" value="3" />
+          </label>
+          <label class="exercise-field">
+            <span>Время на жест</span>
+            <select id="exercise-interval">
+              <option value="3500">Спокойно, 3.5 сек</option>
+              <option value="2800" selected>Обычно, 2.8 сек</option>
+              <option value="2200">Быстрее, 2.2 сек</option>
+              <option value="1600">Быстро, 1.6 сек</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <section class="exercise-panel">
+        <div class="exercise-section-heading">
+          <div><span class="exercise-step">2</span><h3>Выбери жесты</h3></div>
+          <span class="exercise-counter" id="exercise-selected-count">0 выбрано</span>
+        </div>
+        <p class="exercise-help">Нажимай на карточки. В тренировке останутся только выбранные жесты.</p>
+        <div class="exercise-gesture-grid" id="exercise-gesture-grid"></div>
+      </section>
+
+      <section class="exercise-panel">
+        <div class="exercise-section-heading">
+          <div><span class="exercise-step">3</span><h3>Порядок выполнения</h3></div>
+          <button class="btn-ghost small" type="button" id="exercise-clear">Очистить</button>
+        </div>
+        <div class="exercise-sequence-empty" id="exercise-sequence-empty">Выбери хотя бы один жест выше.</div>
+        <div class="exercise-sequence" id="exercise-sequence"></div>
+      </section>
+
+      <section class="exercise-summary" aria-live="polite">
+        <div>
+          <span class="exercise-summary-label">Целевые пальцы</span>
+          <div class="exercise-targets" id="exercise-targets">Не выбраны</div>
+        </div>
+        <div>
+          <span class="exercise-summary-label">Объём</span>
+          <strong id="exercise-total">0 действий</strong>
+        </div>
+        <div>
+          <span class="exercise-summary-label">Примерное время</span>
+          <strong id="exercise-duration">0 мин</strong>
+        </div>
+        <button class="btn-primary" type="button" id="exercise-start" disabled>Начать тренировку</button>
+      </section>
+      <p class="exercise-error" id="exercise-error" role="alert"></p>
     </div>
   </div>
 
@@ -419,6 +498,7 @@
   <script src="js/gestures.js"></script>
   <script src="js/midi.js"></script>
   <script src="js/game-results.js"></script>
+  <script src="js/exercise-builder.js"></script>
   <script src="js/diagnostic-metrics.js"></script>
   <script src="js/diagnostics.js"></script>
   <script src="js/glove-settings.js"></script>

@@ -1,7 +1,7 @@
 /**
  * app.js — Screen router, home screen live preview, settings, song list
  *
- * Screen IDs: home | songs | game | diag | settings
+ * Screen IDs: home | songs | exercise | game | diag | settings
  * Navigation is hash-based but fully managed here (no page reloads).
  */
 
@@ -32,9 +32,13 @@ const App = (() => {
 
     // Enter hooks
     if (id === 'diag') Diagnostics.enter();
+    if (id === 'exercise') ExerciseBuilder.enter();
     if (id === 'game' && _loadedSong) {
+      const hudName = document.getElementById('hud-song-name');
+      if (hudName) hudName.textContent = _loadedSong.name;
       // show overlay first
-      _showGameOverlay('Готов?', `Песня: ${_loadedSong.name}`, 'Поехали!', () => {
+      const typeLabel = _loadedSong.exercise ? 'Тренировка' : 'Песня';
+      _showGameOverlay('Готов?', `${typeLabel}: ${_loadedSong.name}`, 'Поехали!', () => {
         Game.start(_loadedSong);
       });
     }
@@ -176,18 +180,17 @@ const App = (() => {
   function _bindGameHud() {
     const scoreEl = document.getElementById('hud-score');
     const comboEl = document.getElementById('hud-combo');
-    const nameEl  = document.getElementById('hud-song-name');
-
     Game.onScoreChange(({ score, combo }) => {
       scoreEl.textContent = score.toLocaleString();
       comboEl.textContent = combo > 1 ? `x${combo}` : '';
     });
 
     Game.onEnd(({ score, hits, totalNotes, successPercent }) => {
+      const isExercise = !!_loadedSong?.exercise;
       _showGameOverlay(
-        '🎉 Готово!',
+        isExercise ? '🎉 Тренировка завершена!' : '🎉 Готово!',
         `Счёт: ${score.toLocaleString()} · Успех: ${successPercent}% · ${hits} из ${totalNotes} нот`,
-        'Сыграть ещё',
+        isExercise ? 'Повторить тренировку' : 'Сыграть ещё',
         () => {
           if (_loadedSong) Game.start(_loadedSong);
         }
@@ -288,9 +291,11 @@ const App = (() => {
     };
 
     nav('btn-play',      'songs');
+    nav('btn-exercise',  'exercise');
     nav('btn-diag',      'diag');
     nav('btn-settings',  'settings');
     nav('songs-back',    'home');
+    nav('exercise-back', 'home');
     nav('game-back',     'home');
     nav('diag-back',     'home');
     nav('settings-back', 'home');
@@ -425,6 +430,10 @@ const App = (() => {
     Diagnostics.init();
     GloveSettings.init();
     Game.init();
+    ExerciseBuilder.init((song) => {
+      _loadedSong = song;
+      showScreen('game');
+    });
 
     _initHomePreview();
     _buildSongList();

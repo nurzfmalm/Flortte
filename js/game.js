@@ -525,7 +525,9 @@ const Game = (() => {
   // ── Public ────────────────────────────────────────────────
   function start(song) {
     stop();
-    if (MidiPlayer.assignSongPitchLanes) MidiPlayer.assignSongPitchLanes(song.notes);
+    if (Gestures.setActiveGestureIds) Gestures.setActiveGestureIds(song.gestureIds || null);
+    (song.notes || []).forEach(note => { delete note.resultRecorded; });
+    if (!song.preserveLanes && MidiPlayer.assignSongPitchLanes) MidiPlayer.assignSongPitchLanes(song.notes);
     _song      = song;
     _noteIndex = 0;
     _tiles     = [];
@@ -570,6 +572,7 @@ const Game = (() => {
     _forgivingArmed = true;
     _lastNextSignature = '';
     _updateNextGesture(null, 0);
+    if (Gestures.setActiveGestureIds) Gestures.setActiveGestureIds(null);
     if (_ctx && _canvas) _ctx.clearRect(0, 0, _canvas.width, _canvas.height);
     _laneKeys.forEach(el => el.classList.remove('active', 'hit'));
     _syncLaneKeys();

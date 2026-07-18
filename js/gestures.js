@@ -75,6 +75,7 @@ const Gestures = (() => {
     enabled[key] = true;
     return enabled;
   }, {});
+  let _activeGestureIds = null;
 
   const UNSUPPORTED_GESTURE = {
     id: 'unsupported',
@@ -211,7 +212,12 @@ const Gestures = (() => {
   }
 
   function playableGestures() {
-    return GESTURE_MAP.filter(g => g.lane !== null && g.image && _patternAvailable(g.pattern));
+    return GESTURE_MAP.filter(g =>
+      g.lane !== null &&
+      g.image &&
+      _patternAvailable(g.pattern) &&
+      (!_activeGestureIds || _activeGestureIds.has(g.id))
+    );
   }
 
   function laneCount() {
@@ -233,6 +239,22 @@ const Gestures = (() => {
       copy[key] = _enabledFingers[key] !== false;
       return copy;
     }, {});
+  }
+
+  function setActiveGestureIds(ids) {
+    if (!Array.isArray(ids) || !ids.length) {
+      _activeGestureIds = null;
+      return null;
+    }
+
+    const validIds = new Set(GESTURE_MAP.map(gesture => gesture.id));
+    const selected = ids.filter(id => validIds.has(id));
+    _activeGestureIds = selected.length ? new Set(selected) : null;
+    return getActiveGestureIds();
+  }
+
+  function getActiveGestureIds() {
+    return _activeGestureIds ? Array.from(_activeGestureIds) : null;
   }
 
   function _saveThresholds() {
@@ -291,5 +313,5 @@ const Gestures = (() => {
   }
   function allGestures()  { return GESTURE_MAP; }
 
-  return { classify, patternFit, laneForNote, gestureForLane, playableGestures, laneCount, setThreshold, getThreshold, getThresholdPair, getThresholds, setEnabledFingers, getEnabledFingers, allGestures, midiToName };
+  return { classify, patternFit, laneForNote, gestureForLane, playableGestures, laneCount, setThreshold, getThreshold, getThresholdPair, getThresholds, setEnabledFingers, getEnabledFingers, setActiveGestureIds, getActiveGestureIds, allGestures, midiToName };
 })();

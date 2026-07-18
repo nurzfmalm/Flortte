@@ -49,6 +49,15 @@ assert.strictEqual(context.Gestures.classify(sensors([0, 0, 0, 0, 1])).gesture.i
 assert.strictEqual(context.Gestures.laneCount(), 9);
 assert.ok(context.Gestures.playableGestures().every(gesture => gesture.image));
 
+context.Gestures.setActiveGestureIds(['gesture-2', 'gesture-4']);
+assert.deepStrictEqual(
+  Array.from(context.Gestures.playableGestures(), gesture => gesture.id),
+  ['gesture-2', 'gesture-4'],
+);
+assert.strictEqual(context.Gestures.gestureForLane(1).id, 'gesture-4');
+context.Gestures.setActiveGestureIds(null);
+assert.strictEqual(context.Gestures.laneCount(), 9);
+
 context.Gestures.playableGestures().forEach((gesture) => {
   assert.ok(fs.existsSync(path.join(__dirname, '..', gesture.image)), `Missing image for ${gesture.id}`);
 });
