@@ -66,7 +66,10 @@ function createWindow() {
     event.preventDefault();
     bluetoothCallback = callback;
 
-    const glove = devices.find((device) => device.deviceName === DEVICE_NAME);
+    // macOS may discover a BLE device before its scan-response name arrives.
+    // Web Bluetooth has already filtered this list by the Flortte service UUID,
+    // so the first unnamed match is still the glove.
+    const glove = devices.find((device) => device.deviceName === DEVICE_NAME) || devices[0];
     if (!glove) return;
 
     bluetoothCallback(glove.deviceId);

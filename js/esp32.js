@@ -88,7 +88,7 @@ const ESP32 = (() => {
     _setStatus('connecting');
     try {
       _device = await navigator.bluetooth.requestDevice({
-        filters: [{ name: DEVICE_NAME }],
+        filters: [{ services: [SERVICE_UUID] }],
         optionalServices: [SERVICE_UUID],
       });
       _device.addEventListener('gattserverdisconnected', _onDisconnected);

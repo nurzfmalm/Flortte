@@ -45,7 +45,10 @@
       "target": "dmg",
       "icon": "build/icon.icns",
       "category": "public.app-category.education",
-      "artifactName": "Flortte-${version}-macOS-${arch}.${ext}"
+      "artifactName": "Flortte-${version}-macOS-${arch}.${ext}",
+      "extendInfo": {
+        "NSBluetoothAlwaysUsageDescription": "Flortte подключается к перчатке по Bluetooth"
+      }
     },
     "nsis": {
       "oneClick": false,
