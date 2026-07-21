@@ -341,7 +341,7 @@ const Game = (() => {
                    : accuracy === 'GOOD'    ?  70 * Math.min(_combo, 10)
                    :                           40;
       _score += points;
-      GameResults.recordHit(_resultSession, best, _gestureForLane);
+      GameResults.recordHit(_resultSession, best, _gestureForLane, { movementTimeMs: nowMs });
       _flashes.push({ lane, t: performance.now(), label: accuracy, points });
       _emitScore();
 

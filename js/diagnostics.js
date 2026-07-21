@@ -143,8 +143,39 @@ const Diagnostics = (() => {
     _playerResultSummary?.appendChild(item);
   }
 
+  function _formatMilliseconds(value) {
+    return value !== null && value !== undefined && Number.isFinite(Number(value))
+      ? `${Number(value).toFixed(1)} мс`
+      : 'Нет данных';
+  }
+
+  function _timingProgress(result, history) {
+    const currentValue = result?.timing?.meanErrorMs;
+    if (currentValue === null || currentValue === undefined || !Number.isFinite(Number(currentValue))) return null;
+    const currentMean = Number(currentValue);
+
+    const comparable = history.filter(item => (
+      item !== result
+      && item?.songName === result.songName
+      && item?.timing?.meanErrorMs !== null
+      && item?.timing?.meanErrorMs !== undefined
+      && Number.isFinite(Number(item.timing.meanErrorMs))
+    ));
+    if (!comparable.length) return null;
+
+    const baseline = comparable[comparable.length - 1];
+    const baselineMean = Number(baseline.timing.meanErrorMs);
+    return {
+      baselineMean,
+      currentMean,
+      delta: currentMean - baselineMean,
+      completedAt: baseline.completedAt,
+    };
+  }
+
   function _renderPlayerResults() {
-    const result = GameResults.latest();
+    const history = GameResults.loadHistory();
+    const result = history[0] || null;
     if (!result) {
       if (_playerResultOverall) {
         _playerResultOverall.className = 'diagnostic-overall idle';
@@ -169,6 +200,19 @@ const Diagnostics = (() => {
     _appendPlayerSummary('Попадания', `${result.hits} из ${result.totalNotes}`);
     _appendPlayerSummary('Промахи', String(result.misses));
     _appendPlayerSummary('Лучшая серия', String(result.maxCombo));
+    _appendPlayerSummary('Средняя ошибка (MTE)', _formatMilliseconds(result.timing?.meanErrorMs));
+    _appendPlayerSummary('Вариативность (SD)', _formatMilliseconds(result.timing?.variabilityMs));
+
+    const progress = _timingProgress(result, history);
+    if (progress) {
+      const direction = progress.delta < 0 ? 'лучше' : progress.delta > 0 ? 'хуже' : 'без изменений';
+      const change = Math.abs(progress.delta).toFixed(1);
+      const date = new Date(progress.completedAt).toLocaleDateString('ru-RU');
+      _appendPlayerSummary(
+        'Прогресс MTE',
+        `${progress.baselineMean.toFixed(1)} → ${progress.currentMean.toFixed(1)} мс, ${change} мс ${direction} с ${date}`
+      );
+    }
     _appendPlayerSummary('Завершено', new Date(result.completedAt).toLocaleString('ru-RU'));
 
     _playerFingerResults?.replaceChildren();
@@ -194,7 +238,12 @@ const Diagnostics = (() => {
       const details = document.createElement('span');
       details.className = 'player-finger-details';
       details.textContent = `${finger.hits} из ${finger.attempts} успешных нот`;
-      card.append(heading, progress, details);
+      const timing = document.createElement('span');
+      timing.className = 'player-finger-details player-finger-timing';
+      timing.textContent = finger.timing?.samples
+        ? `MTE ${_formatMilliseconds(finger.timing.meanErrorMs)}, SD ${_formatMilliseconds(finger.timing.variabilityMs)}`
+        : 'Нет данных о тайминге';
+      card.append(heading, progress, details, timing);
       _playerFingerResults?.appendChild(card);
     });
   }

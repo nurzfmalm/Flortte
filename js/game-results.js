@@ -15,8 +15,10 @@ const GameResults = (() => {
       durationMs: Number(song?.durationMs) || 0,
       totalNotes: 0,
       hits: 0,
+      timingErrorsMs: [],
       fingerAttempts: FINGER_LABELS.map(() => 0),
       fingerHits: FINGER_LABELS.map(() => 0),
+      fingerTimingErrorsMs: FINGER_LABELS.map(() => []),
     };
 
     (song?.notes || []).forEach((note) => {
@@ -32,19 +34,45 @@ const GameResults = (() => {
     return session;
   }
 
-  function recordHit(session, note, gestureForLane) {
+  function recordHit(session, note, gestureForLane, { movementTimeMs } = {}) {
     if (!session || !note || note.resultRecorded) return;
     note.resultRecorded = true;
     session.hits++;
+
+    const targetTimeMs = Number(note.time);
+    const actualTimeMs = Number(movementTimeMs);
+    const timingErrorMs = Number.isFinite(targetTimeMs) && Number.isFinite(actualTimeMs)
+      ? Math.abs(actualTimeMs - targetTimeMs)
+      : null;
+
+    if (timingErrorMs !== null) session.timingErrorsMs.push(timingErrorMs);
+
     _gesturePattern(gestureForLane, note.lane).forEach((required, index) => {
       if (required === 1 && index < session.fingerHits.length) {
         session.fingerHits[index]++;
+        if (timingErrorMs !== null) session.fingerTimingErrorsMs[index].push(timingErrorMs);
       }
     });
   }
 
   function _percent(hits, attempts) {
     return attempts > 0 ? Math.round((hits / attempts) * 100) : null;
+  }
+
+  function timingMetrics(values = []) {
+    const errors = values
+      .filter(value => value !== null && value !== undefined && value !== '')
+      .map(Number)
+      .filter(value => Number.isFinite(value) && value >= 0);
+    if (!errors.length) return { samples: 0, meanErrorMs: null, variabilityMs: null };
+
+    const mean = errors.reduce((sum, value) => sum + value, 0) / errors.length;
+    const variance = errors.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / errors.length;
+    return {
+      samples: errors.length,
+      meanErrorMs: Math.round(mean * 100) / 100,
+      variabilityMs: Math.round(Math.sqrt(variance) * 100) / 100,
+    };
   }
 
   function finalizeSession(session, { score = 0, maxCombo = 0 } = {}) {
@@ -60,11 +88,13 @@ const GameResults = (() => {
       hits,
       misses: Math.max(0, session.totalNotes - hits),
       successPercent: _percent(hits, session.totalNotes) ?? 0,
+      timing: timingMetrics(session.timingErrorsMs),
       fingers: FINGER_LABELS.map((name, index) => ({
         name,
         attempts: session.fingerAttempts[index],
         hits: session.fingerHits[index],
         successPercent: _percent(session.fingerHits[index], session.fingerAttempts[index]),
+        timing: timingMetrics(session.fingerTimingErrorsMs[index]),
       })),
     };
     return result;
@@ -93,5 +123,5 @@ const GameResults = (() => {
     return loadHistory()[0] || null;
   }
 
-  return { createSession, recordHit, finalizeSession, loadHistory, save, latest };
+  return { createSession, recordHit, timingMetrics, finalizeSession, loadHistory, save, latest };
 })();
