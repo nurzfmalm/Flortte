@@ -585,6 +585,7 @@ input.input-error { border-color: var(--red); box-shadow: 0 0 0 2px #ef444422; }
 .player-finger-result.warn .player-finger-progress > div { background: var(--amber); }
 .player-finger-result.fail .player-finger-progress > div { background: var(--red); }
 .player-finger-details { color: var(--text-3); font-size: .66rem; }
+.player-finger-timing { color: var(--text-2); line-height: 1.35; }
 .diagnostic-test-header {
   display: flex;
   align-items: flex-start;

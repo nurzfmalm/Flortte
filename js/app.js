@@ -185,11 +185,16 @@ const App = (() => {
       comboEl.textContent = combo > 1 ? `x${combo}` : '';
     });
 
-    Game.onEnd(({ score, hits, totalNotes, successPercent }) => {
+    Game.onEnd(({ score, hits, totalNotes, successPercent, timing }) => {
       const isExercise = !!_loadedSong?.exercise;
+      const timingText = timing?.meanErrorMs !== null
+        && timing?.meanErrorMs !== undefined
+        && Number.isFinite(Number(timing.meanErrorMs))
+        ? ` · MTE: ${Number(timing.meanErrorMs).toFixed(1)} мс · SD: ${Number(timing.variabilityMs).toFixed(1)} мс`
+        : '';
       _showGameOverlay(
         isExercise ? '🎉 Тренировка завершена!' : '🎉 Готово!',
-        `Счёт: ${score.toLocaleString()} · Успех: ${successPercent}% · ${hits} из ${totalNotes} нот`,
+        `Счёт: ${score.toLocaleString()} · Успех: ${successPercent}% · ${hits} из ${totalNotes} нот${timingText}`,
         isExercise ? 'Повторить тренировку' : 'Сыграть ещё',
         () => {
           if (_loadedSong) Game.start(_loadedSong);
