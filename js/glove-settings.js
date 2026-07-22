@@ -1,6 +1,7 @@
 /** Calibration and per-finger thresholds shown on the Settings screen. */
 const GloveSettings = (() => {
   const SENSOR_KEYS = ['keyPinch', 'indexThumb', 'middleThumb', 'ring', 'little'];
+  const SENSOR_LABELS = ['большой', 'указательный', 'средний', 'безымянный', 'мизинец'];
   const MAX_ADC = 4095;
   let _thresholdInputs = [];
   let _calibrationStatus;
@@ -56,7 +57,7 @@ const GloveSettings = (() => {
       cancel: 'Калибровка отменена.',
     };
     try {
-      await ESP32.calibrate(action);
+      const state = await ESP32.calibrate(action);
       if (action === 'start') {
         _setCalibrationSteps('running');
         _showCalibrationAction('bent');
@@ -68,7 +69,19 @@ const GloveSettings = (() => {
         _showCalibrationAction('idle');
         _isCalibrating = false;
       }
-      _setCalibrationStatus(messages[action], action === 'open' ? 'done' : 'running');
+      if (action === 'open') {
+        const disabled = SENSOR_KEYS
+          .map((key, index) => state.enabled?.[key] === false ? SENSOR_LABELS[index] : null)
+          .filter(Boolean);
+        _setCalibrationStatus(
+          disabled.length
+            ? `Калибровка завершена. Не прошли проверку: ${disabled.join(', ')}.`
+            : messages[action],
+          disabled.length ? 'error' : 'done'
+        );
+      } else {
+        _setCalibrationStatus(messages[action], action === 'cancel' ? '' : 'running');
+      }
     } catch (error) {
       _isCalibrating = false;
       _showCalibrationAction('idle');
@@ -100,7 +113,7 @@ const GloveSettings = (() => {
     if (syncAfter) _syncThreshold(index);
   }
 
-  function _onSensorData(_sensors, status) {
+  function _onSensorData(_sensors, status, state) {
     if (_gloveStatus) {
       _gloveStatus.textContent = status === 'connected'
         ? 'FlortteGlove подключена по Bluetooth'
@@ -110,8 +123,18 @@ const GloveSettings = (() => {
             ? `Bluetooth: ${ESP32.lastError}`
             : 'Bluetooth не подключён';
     }
-    if (!_isCalibrating && status === 'connected') {
-      _setCalibrationStatus('Перчатка подключена. Можно запускать калибровку.', 'done');
+    if (_isCalibrating && status !== 'connected') {
+      _isCalibrating = false;
+      _showCalibrationAction('idle');
+      _setCalibrationSteps('error');
+      _setCalibrationStatus('Калибровка прервана из-за потери Bluetooth.', 'error');
+    } else if (!_isCalibrating && status === 'connected') {
+      _setCalibrationStatus(
+        state?.calibrated
+          ? 'Сохранённая калибровка загружена. Можно играть.'
+          : 'Перчатка подключена. Запустите калибровку.',
+        state?.calibrated ? 'done' : ''
+      );
     }
   }
 
