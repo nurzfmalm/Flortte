@@ -595,9 +595,11 @@ const Game = (() => {
   function setWindow(v) { _window = v; localStorage.setItem('game_window', v); }
   function getSpeed()   { return _speed; }
   function getWindow()  { return _window; }
+  function isActive()   { return _active; }
+  function isPaused()   { return _paused; }
 
   function onScoreChange(fn) { _scoreListeners.push(fn); }
   function onEnd(fn)         { _endListeners.push(fn); }
 
-  return { init, start, stop, pause, resume, setSpeed, setWindow, getSpeed, getWindow, onScoreChange, onEnd };
+  return { init, start, stop, pause, resume, isActive, isPaused, setSpeed, setWindow, getSpeed, getWindow, onScoreChange, onEnd };
 })();

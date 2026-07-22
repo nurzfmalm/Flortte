@@ -462,6 +462,9 @@ input.input-error { border-color: var(--red); box-shadow: 0 0 0 2px #ef444422; }
 }
 .overlay-title { font-size: 2rem; font-weight: 700; }
 .overlay-sub   { font-size: .9rem; color: var(--text-2); text-align: center; }
+.overlay-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.overlay-actions .hidden { display: none; }
+.game-exit-button { min-width: 78px; color: var(--red); }
 
 /* ════════════════════════════════════════════
    DIAGNOSTICS SCREEN
@@ -1130,6 +1133,7 @@ input[type="range"] { accent-color: var(--violet); min-height: 38px; }
   grid-template-columns: minmax(220px, 1.4fr) minmax(130px, .5fr) minmax(210px, .8fr);
   gap: 14px;
 }
+.exercise-fields.exercise-name-only { grid-template-columns: minmax(220px, 1fr); }
 .exercise-field {
   display: flex;
   flex-direction: column;
@@ -1246,6 +1250,70 @@ input[type="range"] { accent-color: var(--violet); min-height: 38px; }
 .exercise-order-button:hover:not(:disabled) { border-color: var(--violet); color: var(--violet); }
 .exercise-order-button:disabled { opacity: .35; cursor: default; }
 .exercise-order-button.remove { color: var(--red); }
+.exercise-music-state {
+  color: var(--violet);
+  font-size: .78rem;
+  font-weight: 800;
+}
+.exercise-music-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, .8fr) minmax(360px, 1.4fr);
+  gap: 14px;
+}
+.exercise-music-card,
+.exercise-upload-card {
+  min-width: 0;
+  border: 2px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface-2);
+}
+.exercise-music-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px;
+  color: var(--text);
+  text-align: left;
+}
+.exercise-music-card.selected,
+.exercise-upload-card.selected { border-color: var(--violet); background: #f0edff; }
+.exercise-music-card > span:nth-child(2),
+.exercise-upload-heading > span:nth-child(2) { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.exercise-music-card small,
+.exercise-upload-heading small { color: var(--text-2); }
+.exercise-music-icon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 52px;
+  border-radius: 16px;
+  background: #fff;
+  font-size: 1.6rem;
+}
+.exercise-music-check {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--violet);
+  color: #fff;
+  font-weight: 900;
+}
+.exercise-upload-card {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(150px, .8fr) minmax(150px, .8fr) auto;
+  gap: 12px;
+  align-items: end;
+  padding: 16px;
+}
+.exercise-upload-heading { display: flex; align-items: center; gap: 12px; align-self: center; }
+.exercise-upload-card .file-pick input { border: 1px solid var(--border); }
+.exercise-upload-card .btn-secondary { min-height: 44px; padding: 10px 16px; white-space: nowrap; }
+.exercise-upload-error { grid-column: 2 / -1; min-height: 18px; color: var(--red); font-size: .78rem; font-weight: 800; }
 .exercise-summary {
   position: sticky;
   bottom: -1px;
@@ -1274,6 +1342,10 @@ input[type="range"] { accent-color: var(--violet); min-height: 38px; }
   .exercise-gesture-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .exercise-summary { grid-template-columns: 1fr 1fr; }
   .exercise-summary .btn-primary { width: 100%; }
+  .exercise-music-grid { grid-template-columns: 1fr; }
+  .exercise-upload-card { grid-template-columns: 1fr 1fr; }
+  .exercise-upload-heading { grid-column: 1 / -1; }
+  .exercise-upload-error { grid-column: 1 / -1; }
 }
 
 @media (max-width: 560px) {
@@ -1289,4 +1361,10 @@ input[type="range"] { accent-color: var(--violet); min-height: 38px; }
   .exercise-sequence-actions { grid-column: 2 / -1; justify-content: flex-end; }
   .exercise-summary { position: static; }
   .exercise-section-heading { align-items: flex-start; }
+  .exercise-upload-card { grid-template-columns: 1fr; }
+  .exercise-upload-heading,
+  .exercise-upload-error { grid-column: 1; }
+  .overlay-card { width: calc(100% - 28px); padding: 28px 20px; }
+  .overlay-actions { width: 100%; }
+  .overlay-actions button { width: 100%; }
 }
