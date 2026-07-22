@@ -157,23 +157,28 @@ const App = (() => {
   }
 
   // ── Game overlay ──────────────────────────────────────────
-  function _showGameOverlay(title, sub, btnText, onBtn) {
+  function _showGameOverlay(title, sub, btnText, onBtn, secondaryText = '', onSecondary = null) {
     const overlay = document.getElementById('game-overlay');
     const oTitle  = document.getElementById('overlay-title');
     const oSub    = document.getElementById('overlay-sub');
     const oBtn    = document.getElementById('overlay-btn');
+    const secondaryBtn = document.getElementById('overlay-secondary-btn');
 
     oTitle.textContent = title;
     oSub.textContent   = sub;
     oBtn.textContent   = btnText;
     overlay.classList.remove('hidden');
 
-    const handler = () => {
+    oBtn.onclick = () => {
       overlay.classList.add('hidden');
-      oBtn.removeEventListener('click', handler);
       if (onBtn) onBtn();
     };
-    oBtn.addEventListener('click', handler);
+    secondaryBtn.textContent = secondaryText;
+    secondaryBtn.classList.toggle('hidden', !secondaryText);
+    secondaryBtn.onclick = secondaryText ? () => {
+      overlay.classList.add('hidden');
+      if (onSecondary) onSecondary();
+    } : null;
   }
 
   // ── Game HUD updates ──────────────────────────────────────
@@ -301,7 +306,6 @@ const App = (() => {
     nav('btn-settings',  'settings');
     nav('songs-back',    'home');
     nav('exercise-back', 'home');
-    nav('game-back',     'home');
     nav('diag-back',     'home');
     nav('settings-back', 'home');
 
@@ -313,10 +317,24 @@ const App = (() => {
       finally { button.disabled = false; }
     });
 
-    // Game back — also stop game
+    // Confirm leaving so an accidental tap does not erase the current session.
     document.getElementById('game-back')?.addEventListener('click', () => {
-      Game.stop();
-      showScreen('home');
+      const wasActive = Game.isActive();
+      if (wasActive) Game.pause();
+      _showGameOverlay(
+        'Выйти из игры?',
+        'Текущий результат этой попытки не сохранится.',
+        'Продолжить игру',
+        () => {
+          if (wasActive) Game.resume();
+          else showScreen('game');
+        },
+        'Выйти в меню',
+        () => {
+          Game.stop();
+          showScreen('home');
+        }
+      );
     });
   }
 

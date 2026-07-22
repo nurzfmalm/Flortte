@@ -1,6 +1,6 @@
 {
   "name": "flortte-windows",
-  "version": "1.1.0",
+  "version": "1.67.0",
   "description": "Автономное приложение для пианино-перчатки Flortte",
   "main": "electron/main.js",
   "author": "Flortte",
@@ -18,7 +18,7 @@
   },
   "build": {
     "appId": "kz.flortte.app",
-    "productName": "Flortte",
+    "productName": "Flortte by Orchid 6767",
     "asar": true,
     "directories": {
       "output": "dist",

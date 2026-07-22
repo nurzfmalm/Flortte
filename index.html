@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' blob:" />
-  <title>Flortte, пианино-перчатка</title>
+  <title>Flortte by Orchid 6767</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -22,7 +22,7 @@
       <div class="home-logo">
         <span class="logo-f">F</span><span class="logo-rest">lortte</span>
       </div>
-      <p class="home-sub">Glove Piano</p>
+      <p class="home-sub">by Orchid 6767</p>
 
       <div class="gesture-preview">
         <div class="gp-sensor" id="hp-s0">
@@ -88,28 +88,15 @@
         <div class="exercise-section-heading">
           <div>
             <span class="exercise-step">1</span>
-            <h3>Параметры</h3>
+            <h3>Название тренировки</h3>
           </div>
           <span class="exercise-save-state" id="exercise-save-state">Сохраняется на устройстве</span>
         </div>
 
-        <div class="exercise-fields">
+        <div class="exercise-fields exercise-name-only">
           <label class="exercise-field exercise-name-field">
             <span>Название</span>
             <input id="exercise-name" type="text" maxlength="60" value="Моя тренировка" />
-          </label>
-          <label class="exercise-field">
-            <span>Кругов</span>
-            <input id="exercise-repetitions" type="number" min="1" max="10" step="1" value="3" />
-          </label>
-          <label class="exercise-field">
-            <span>Время на жест</span>
-            <select id="exercise-interval">
-              <option value="3500">Спокойно, 3.5 сек</option>
-              <option value="2800" selected>Обычно, 2.8 сек</option>
-              <option value="2200">Быстрее, 2.2 сек</option>
-              <option value="1600">Быстро, 1.6 сек</option>
-            </select>
           </label>
         </div>
       </section>
@@ -123,9 +110,34 @@
         <div class="exercise-gesture-grid" id="exercise-gesture-grid"></div>
       </section>
 
+      <section class="exercise-panel exercise-music-panel">
+        <div class="exercise-section-heading">
+          <div><span class="exercise-step">3</span><h3>Выбери музыку</h3></div>
+          <span class="exercise-music-state" id="exercise-music-state">Гарри Поттер выбран</span>
+        </div>
+        <p class="exercise-help">Ритм берётся из MIDI. Жесты повторяются в выбранном порядке, а одновременные ноты становятся одним действием.</p>
+        <div class="exercise-music-grid">
+          <button class="exercise-music-card selected" id="exercise-music-potter" type="button" aria-pressed="true">
+            <span class="exercise-music-icon">🧙</span>
+            <span><strong>Harry Potter Theme</strong><small>Уже добавлена в приложение</small></span>
+            <span class="exercise-music-check">✓</span>
+          </button>
+          <div class="exercise-upload-card" id="exercise-upload-card">
+            <div class="exercise-upload-heading">
+              <span class="exercise-music-icon">🎧</span>
+              <span><strong>Своя песня</strong><small>Добавь аудио вместе с MIDI</small></span>
+            </div>
+            <label class="file-pick"><span>1. MIDI</span><input type="file" accept=".mid,.midi,audio/midi" id="exercise-midi-input" /></label>
+            <label class="file-pick"><span>2. Аудио</span><input type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac" id="exercise-audio-input" /></label>
+            <button class="btn-secondary" id="exercise-add-music" type="button">Добавить песню</button>
+            <p class="exercise-upload-error" id="exercise-upload-error" role="alert"></p>
+          </div>
+        </div>
+      </section>
+
       <section class="exercise-panel">
         <div class="exercise-section-heading">
-          <div><span class="exercise-step">3</span><h3>Порядок выполнения</h3></div>
+          <div><span class="exercise-step">4</span><h3>Порядок выполнения</h3></div>
           <button class="btn-ghost small" type="button" id="exercise-clear">Очистить</button>
         </div>
         <div class="exercise-sequence-empty" id="exercise-sequence-empty">Выбери хотя бы один жест выше.</div>
@@ -154,7 +166,7 @@
   <!-- GAME -->
   <div id="screen-game" class="screen">
     <div class="game-hud">
-      <button class="btn-back small" id="game-back">✕</button>
+      <button class="btn-back small game-exit-button" id="game-back">Выйти</button>
       <div class="hud-song-name" id="hud-song-name">—</div>
       <div class="hud-score-wrap">
         <span class="hud-score-label">ОЧКИ</span>
@@ -263,7 +275,10 @@
       <div class="overlay-card">
         <div class="overlay-title" id="overlay-title">Готов?</div>
         <div class="overlay-sub" id="overlay-sub"></div>
-        <button class="btn-primary" id="overlay-btn">Начать</button>
+        <div class="overlay-actions">
+          <button class="btn-primary" id="overlay-btn">Начать</button>
+          <button class="btn-secondary hidden" id="overlay-secondary-btn">Выйти в меню</button>
+        </div>
       </div>
     </div>
   </div>

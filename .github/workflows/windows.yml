@@ -59,6 +59,8 @@ jobs:
         run: |
           npx cap add android
           npx cap sync android
+          sed -i 's/versionCode 1/versionCode 16700/' android/app/build.gradle
+          sed -i 's/versionName "1.0"/versionName "1.67.0"/' android/app/build.gradle
       - name: Generate Android icon from build/icon.ico
         shell: bash
         run: |
@@ -129,7 +131,7 @@ jobs:
           /usr/libexec/PlistBuddy -c "Add :NSBluetoothAlwaysUsageDescription string Flortte подключается к перчатке по Bluetooth" ios/App/App/Info.plist
       - name: Build unsigned iPhone app
         run: |
-          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -sdk iphoneos -derivedDataPath ios/build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -sdk iphoneos -derivedDataPath ios/build MARKETING_VERSION=1.67.0 CURRENT_PROJECT_VERSION=16700 CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
           mkdir -p ios/Payload
           cp -R ios/build/Build/Products/Release-iphoneos/App.app ios/Payload/Flortte.app
           cd ios

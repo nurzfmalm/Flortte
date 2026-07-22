@@ -51,6 +51,27 @@ assert.deepStrictEqual(Array.from(song.exercise.targetFingers), [0, 1, 2]);
 const fistTargets = context.ExerciseBuilder.targetFingerIndexes({ gestureIds: ['fist'] }, catalogue);
 assert.deepStrictEqual(Array.from(fistTargets), [0, 1, 2, 3, 4]);
 
+const midiExercise = context.ExerciseBuilder.createSongFromMidi(plan, {
+  name: 'Test song',
+  durationMs: 8000,
+  audioUrl: 'test.mp3',
+  audioName: 'test.mp3',
+  notes: [
+    { time: 1000, duration: 200, note: 60, velocity: 70 },
+    { time: 1000, duration: 500, note: 67, velocity: 90 },
+    { time: 2400, duration: 300, note: 64, velocity: 80 },
+    { time: 4000, duration: 300, note: 65, velocity: 80 },
+  ],
+}, catalogue);
+assert.strictEqual(midiExercise.notes.length, 3);
+assert.deepStrictEqual(Array.from(midiExercise.notes.map(note => note.gestureId)), ['pair', 'thumb', 'pair']);
+assert.deepStrictEqual(Array.from(midiExercise.notes.map(note => note.lane)), [1, 0, 1]);
+assert.strictEqual(midiExercise.notes[0].note, 67);
+assert.strictEqual(midiExercise.notes[0].duration, 500);
+assert.strictEqual(midiExercise.audioUrl, 'test.mp3');
+assert.strictEqual(midiExercise.durationMs, 8000);
+assert.strictEqual(midiExercise.exercise.simultaneousNotesCombined, true);
+
 context.ExerciseBuilder.savePlan(plan);
 assert.strictEqual(context.ExerciseBuilder.loadPlan().name, 'Пальцы 1–3');
 assert.throws(() => context.ExerciseBuilder.createSong({ gestureIds: [] }, catalogue));
