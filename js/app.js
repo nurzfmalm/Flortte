@@ -203,6 +203,11 @@ const App = (() => {
         isExercise ? 'Повторить тренировку' : 'Сыграть ещё',
         () => {
           if (_loadedSong) Game.start(_loadedSong);
+        },
+        'Выйти в меню',
+        () => {
+          Game.stop();
+          showScreen('home');
         }
       );
     });
