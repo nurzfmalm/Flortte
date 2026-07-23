@@ -13,12 +13,59 @@ const App = (() => {
       file: 'assets/midi/potter.mid',
       audio: 'assets/audio/potter.mp3',
       emoji: '🧙',
+      description: 'Оригинальное аудио',
+    },
+    {
+      name: 'Синий трактор: Разминка',
+      file: 'assets/midi/blue-tractor-warmup.mid',
+      emoji: '🚜',
+      description: 'Тренировочная MIDI-аранжировка',
+    },
+    {
+      name: 'Синий трактор: Животные',
+      file: 'assets/midi/blue-tractor-animals.mid',
+      emoji: '🐮',
+      description: 'Тренировочная MIDI-аранжировка',
+    },
+    {
+      name: 'Фиксики: Мастерская',
+      file: 'assets/midi/fixies-workshop.mid',
+      emoji: '🛠️',
+      description: 'Тренировочная MIDI-аранжировка',
+    },
+    {
+      name: 'Малышарики: Ладошки',
+      file: 'assets/midi/malyshariki-hands.mid',
+      emoji: '🖐️',
+      description: 'Тренировочная MIDI-аранжировка',
+    },
+    {
+      name: 'Три кота: Весёлые шаги',
+      file: 'assets/midi/three-cats-steps.mid',
+      emoji: '🐱',
+      description: 'Тренировочная MIDI-аранжировка',
+    },
+    {
+      name: 'Маша и Медведь: Дружба',
+      file: 'assets/midi/masha-friendship.mid',
+      emoji: '🐻',
+      description: 'Тренировочная MIDI-аранжировка',
     },
   ];
 
   let _currentScreen = 'home';
   let _loadedSong    = null;
   let _customSongs   = []; // user-uploaded MIDI and optional original audio
+  const SONG_SETTINGS_KEY = 'flortte_song_settings_v1';
+  let _songSettings = (() => {
+    try { return JSON.parse(localStorage.getItem(SONG_SETTINGS_KEY) || '{}'); }
+    catch (_) { return {}; }
+  })();
+
+  function _saveSongSettings() {
+    try { localStorage.setItem(SONG_SETTINGS_KEY, JSON.stringify(_songSettings)); }
+    catch (_) {}
+  }
 
   // ── Screen switching ──────────────────────────────────────
   function showScreen(id) {
@@ -82,7 +129,13 @@ const App = (() => {
 
       const all = [
         ...BUILT_IN_SONGS,
-        ...(_customSongs.map(s => ({ name: s.name, _song: s, emoji: '🎵' }))),
+        ...(_customSongs.map(s => ({
+          name: s.name,
+          _song: s,
+          emoji: '🎵',
+          description: 'Загруженная песня',
+          settingsId: `custom:${s.name}`,
+        }))),
       ];
 
       // Pair a MIDI chart with the user's licensed audio file.
@@ -101,55 +154,149 @@ const App = (() => {
         const error = uploadCard.querySelector('.upload-error');
         error.textContent = '';
         if (!midiFile || !audioFile) { error.textContent = 'Выбери оба файла: MIDI и аудио.'; return; }
-        try { const song = await MidiPlayer.loadFile(midiFile); song.audioUrl = URL.createObjectURL(audioFile); song.audioName = audioFile.name; _customSongs.push(song); _renderList(); }
+        try {
+          const song = await MidiPlayer.loadFile(midiFile);
+          song.audioUrl = URL.createObjectURL(audioFile);
+          song.audioName = audioFile.name;
+          _customSongs.push(song);
+          _renderList();
+        }
         catch (err) { error.textContent = 'MIDI не открылся. Проверь файл и попробуй снова.'; }
       });
       container.appendChild(uploadCard);
 
       all.forEach(entry => {
+        const settingsId = entry.settingsId || entry.file || entry.name;
+        const settings = _songSettings[settingsId] || {
+          tempoPercent: Math.round(MidiPlayer.getTempo() * 100),
+          gestureCount: 0,
+        };
+        _songSettings[settingsId] = settings;
+
         const card = document.createElement('div');
         card.className = 'song-card';
-        const noteCount = entry._song
-          ? entry._song.notes.filter(n => n.lane !== null).length
-          : '…';
-        const dur = entry._song
-          ? Math.ceil(entry._song.durationMs / 1000) + 's'
-          : '';
         card.innerHTML = `
-          <div class="song-thumb">${entry.emoji}</div>
-          <div class="song-info">
-            <div class="song-title">${entry.name}</div>
-            <div class="song-meta">${entry._song ? `${noteCount} нот · ${dur} · ${entry._song.audioUrl ? 'оригинальное аудио' : 'MIDI-звук'}` : 'Учебная версия'}</div>
+          <div class="song-card-main">
+            <div class="song-thumb"></div>
+            <div class="song-info">
+              <div class="song-title"></div>
+              <div class="song-meta">Загрузка уровня…</div>
+            </div>
           </div>
-          <span class="song-arrow">›</span>
+          <div class="song-card-controls">
+            <label class="song-control song-tempo-control">
+              <span>Темп <strong class="song-tempo-value"></strong></span>
+              <span class="song-control-row">
+                <input class="song-tempo-range" type="range" min="25" max="200" step="1" />
+                <input class="song-tempo-number" type="number" min="25" max="200" step="1" inputmode="numeric" />
+                <span>%</span>
+              </span>
+            </label>
+            <label class="song-control song-action-control">
+              <span>Количество жестов <strong class="song-action-value">…</strong></span>
+              <span class="song-control-row">
+                <input class="song-action-range" type="range" min="1" max="1" step="1" disabled />
+                <input class="song-action-number" type="number" min="1" max="1" step="1" inputmode="numeric" disabled />
+              </span>
+            </label>
+            <label class="song-all-actions">
+              <input class="song-all-checkbox" type="checkbox" checked />
+              <span>Все жесты песни</span>
+            </label>
+            <button class="btn-primary song-play-button" type="button">Играть</button>
+          </div>
+          <p class="song-card-error" role="alert"></p>
         `;
+        card.querySelector('.song-thumb').textContent = entry.emoji;
+        card.querySelector('.song-title').textContent = entry.name;
 
-        card.addEventListener('click', async () => {
-          if (entry._song) {
-            _loadedSong = entry._song;
+        const meta = card.querySelector('.song-meta');
+        const tempoRange = card.querySelector('.song-tempo-range');
+        const tempoNumber = card.querySelector('.song-tempo-number');
+        const tempoValue = card.querySelector('.song-tempo-value');
+        const actionRange = card.querySelector('.song-action-range');
+        const actionNumber = card.querySelector('.song-action-number');
+        const actionValue = card.querySelector('.song-action-value');
+        const allCheckbox = card.querySelector('.song-all-checkbox');
+        const playButton = card.querySelector('.song-play-button');
+        const error = card.querySelector('.song-card-error');
+        let totalActions = 1;
+
+        const clamp = (value, min, max, fallback) => {
+          const numeric = parseInt(value, 10);
+          return Number.isFinite(numeric) ? Math.max(min, Math.min(max, numeric)) : fallback;
+        };
+        const syncTempo = (value) => {
+          settings.tempoPercent = clamp(value, 25, 200, 70);
+          tempoRange.value = settings.tempoPercent;
+          tempoNumber.value = settings.tempoPercent;
+          tempoValue.textContent = `${settings.tempoPercent}%`;
+          _saveSongSettings();
+        };
+        const syncActions = (value = settings.gestureCount) => {
+          const useAll = allCheckbox.checked;
+          settings.gestureCount = useAll ? 0 : clamp(value, 1, totalActions, totalActions);
+          const exact = settings.gestureCount || totalActions;
+          actionRange.value = exact;
+          actionNumber.value = exact;
+          actionRange.disabled = useAll;
+          actionNumber.disabled = useAll;
+          actionValue.textContent = useAll ? `Все, ${totalActions}` : `${exact} из ${totalActions}`;
+          _saveSongSettings();
+        };
+        const updateLoadedState = (song) => {
+          totalActions = Math.max(1, song.notes.filter(note => Number.isInteger(note.lane)).length);
+          actionRange.max = totalActions;
+          actionNumber.max = totalActions;
+          if (settings.gestureCount > totalActions) settings.gestureCount = totalActions;
+          allCheckbox.checked = settings.gestureCount === 0;
+          const seconds = Math.max(1, Math.ceil(song.durationMs / 1000));
+          const audioType = song.audioUrl ? 'оригинальное аудио' : 'MIDI-звук';
+          meta.textContent = `${totalActions} жестов · ${seconds} сек · ${audioType} · ${entry.description}`;
+          syncActions(settings.gestureCount);
+        };
+        const ensureLoaded = async () => {
+          if (entry._song) return entry._song;
+          const song = await MidiPlayer.loadUrl(entry.file);
+          song.name = entry.name;
+          if (entry.audio) {
+            song.audioUrl = entry.audio;
+            song.audioName = entry.audio.split('/').pop();
+          }
+          entry._song = song;
+          return song;
+        };
+
+        syncTempo(settings.tempoPercent);
+        tempoRange.addEventListener('input', () => syncTempo(tempoRange.value));
+        tempoNumber.addEventListener('input', () => syncTempo(tempoNumber.value));
+        actionRange.addEventListener('input', () => syncActions(actionRange.value));
+        actionNumber.addEventListener('input', () => syncActions(actionNumber.value));
+        allCheckbox.addEventListener('change', () => syncActions(actionNumber.value));
+        playButton.addEventListener('click', async () => {
+          playButton.disabled = true;
+          playButton.textContent = 'Загрузка…';
+          error.textContent = '';
+          try {
+            const song = await ensureLoaded();
+            _loadedSong = ExerciseBuilder.configureSong(song, settings);
             showScreen('game');
-          } else {
-            // Load built-in
-            try {
-              card.querySelector('.song-arrow').textContent = '…';
-              const song = await MidiPlayer.loadUrl(entry.file);
-              song.name = entry.name;
-              if (entry.audio) {
-                song.audioUrl = entry.audio;
-                song.audioName = entry.audio.split('/').pop();
-              }
-              entry._song = song;
-              _loadedSong = song;
-              _renderList();
-              showScreen('game');
-            } catch (err) {
-              alert('Не удалось загрузить: ' + err.message);
-              card.querySelector('.song-arrow').textContent = '›';
-            }
+          } catch (err) {
+            error.textContent = `Не удалось загрузить уровень: ${err.message}`;
+          } finally {
+            playButton.disabled = false;
+            playButton.textContent = 'Играть';
           }
         });
 
         container.appendChild(card);
+        ensureLoaded()
+          .then(updateLoadedState)
+          .catch((err) => {
+            meta.textContent = 'Уровень не загрузился';
+            error.textContent = err.message;
+            playButton.disabled = true;
+          });
       });
     }
 
@@ -268,7 +415,7 @@ const App = (() => {
 
     saveBtn.addEventListener('click', () => {
       const speed = readBoundedNumber(speedInput, 100, 600, Game.getSpeed());
-      const tempo = readBoundedNumber(tempoInput, 50, 100, Math.round(MidiPlayer.getTempo() * 100));
+      const tempo = readBoundedNumber(tempoInput, 25, 200, Math.round(MidiPlayer.getTempo() * 100));
       const hitWindow = readBoundedNumber(winInput, 80, 400, Game.getWindow());
       const volume = readBoundedNumber(volInput, 0, 100, Math.round(MidiPlayer.getVolume() * 100));
 

@@ -72,6 +72,42 @@ assert.strictEqual(midiExercise.audioUrl, 'test.mp3');
 assert.strictEqual(midiExercise.durationMs, 8000);
 assert.strictEqual(midiExercise.exercise.simultaneousNotesCombined, true);
 
+const limitedExercise = context.ExerciseBuilder.createSongFromMidi({
+  ...plan,
+  tempoPercent: 125,
+  gestureCount: 2,
+}, {
+  name: 'Limited song',
+  durationMs: 8000,
+  notes: [
+    { time: 1000, duration: 300, note: 60, velocity: 80 },
+    { time: 2000, duration: 300, note: 62, velocity: 80 },
+    { time: 3000, duration: 300, note: 64, velocity: 80 },
+    { time: 4000, duration: 300, note: 65, velocity: 80 },
+  ],
+}, catalogue);
+assert.strictEqual(limitedExercise.playbackRate, 1.25);
+assert.strictEqual(limitedExercise.notes.filter(note => Number.isInteger(note.lane)).length, 2);
+assert.strictEqual(limitedExercise.notes.length, 4);
+assert.strictEqual(limitedExercise.exercise.gestureCount, 2);
+assert.strictEqual(limitedExercise.exercise.totalSourceActions, 4);
+
+const configuredSong = context.ExerciseBuilder.configureSong({
+  name: 'Ready level',
+  durationMs: 9000,
+  notes: [
+    { time: 1000, note: 60, lane: 0 },
+    { time: 2000, note: 62, lane: 1 },
+    { time: 3000, note: 64, lane: 2 },
+    { time: 4000, note: 65, lane: 0 },
+  ],
+}, { tempoPercent: 35, gestureCount: 2 });
+assert.strictEqual(configuredSong.playbackRate, 0.35);
+assert.strictEqual(configuredSong.preserveLanes, true);
+assert.strictEqual(configuredSong.notes.filter(note => Number.isInteger(note.lane)).length, 2);
+assert.strictEqual(configuredSong.notes.length, 4);
+assert.strictEqual(configuredSong.songSettings.totalActions, 4);
+
 context.ExerciseBuilder.savePlan(plan);
 assert.strictEqual(context.ExerciseBuilder.loadPlan().name, 'Пальцы 1–3');
 assert.throws(() => context.ExerciseBuilder.createSong({ gestureIds: [] }, catalogue));

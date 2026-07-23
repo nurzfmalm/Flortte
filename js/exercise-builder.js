@@ -7,6 +7,8 @@ const ExerciseBuilder = (() => {
     gestureIds: [],
     repetitions: 3,
     intervalMs: 2800,
+    tempoPercent: 70,
+    gestureCount: 0,
   };
 
   let _plan = { ...DEFAULT_PLAN, gestureIds: [] };
@@ -15,6 +17,7 @@ const ExerciseBuilder = (() => {
   let _builtInSongPromise = null;
   let _selectedSong = null;
   let _customAudioUrl = null;
+  let _sourceActionCount = 1;
 
   function _clamp(value, min, max, fallback) {
     const numeric = parseInt(value, 10);
@@ -42,6 +45,77 @@ const ExerciseBuilder = (() => {
       gestureIds,
       repetitions: _clamp(raw.repetitions, 1, 10, DEFAULT_PLAN.repetitions),
       intervalMs: _clamp(raw.intervalMs, 1200, 5000, DEFAULT_PLAN.intervalMs),
+      tempoPercent: _clamp(raw.tempoPercent, 25, 200, DEFAULT_PLAN.tempoPercent),
+      gestureCount: _clamp(raw.gestureCount, 0, 999, DEFAULT_PLAN.gestureCount),
+    };
+  }
+
+  function _groupMidiNotes(sourceNotes = []) {
+    const groups = [];
+    [...sourceNotes]
+      .filter(note => Number.isFinite(Number(note.time)) && Number.isFinite(Number(note.note)))
+      .sort((a, b) => Number(a.time) - Number(b.time))
+      .forEach((note) => {
+        const lastGroup = groups[groups.length - 1];
+        if (lastGroup && Math.abs(Number(note.time) - lastGroup.time) <= 24) {
+          lastGroup.notes.push(note);
+          return;
+        }
+        groups.push({ time: Number(note.time), notes: [note] });
+      });
+    return groups;
+  }
+
+  function _evenlySpacedIndexes(total, requested) {
+    const count = Math.max(0, Math.min(total, requested));
+    if (!count) return new Set();
+    if (count === total) return new Set(Array.from({ length: total }, (_, index) => index));
+    if (count === 1) return new Set([Math.floor((total - 1) / 2)]);
+
+    const indexes = new Set();
+    for (let index = 0; index < count; index++) {
+      indexes.add(Math.round(index * (total - 1) / (count - 1)));
+    }
+    return indexes;
+  }
+
+  function countSongActions(song) {
+    return _groupMidiNotes(song?.notes).length;
+  }
+
+  function configureSong(sourceSong, rawSettings = {}) {
+    if (!sourceSong || !Array.isArray(sourceSong.notes) || !sourceSong.notes.length) {
+      throw new Error('В выбранной песне нет игровых нот.');
+    }
+
+    const tempoPercent = _clamp(rawSettings.tempoPercent, 25, 200, DEFAULT_PLAN.tempoPercent);
+    const playableIndexes = [];
+    sourceSong.notes.forEach((note, index) => {
+      if (Number.isInteger(note.lane)) playableIndexes.push(index);
+    });
+    if (!playableIndexes.length) throw new Error('В выбранной песне нет доступных жестов.');
+
+    const requested = _clamp(rawSettings.gestureCount, 0, playableIndexes.length, 0);
+    const actionCount = requested || playableIndexes.length;
+    const selectedPositions = _evenlySpacedIndexes(playableIndexes.length, actionCount);
+    const selectedNoteIndexes = new Set(
+      [...selectedPositions].map(position => playableIndexes[position])
+    );
+    const notes = sourceSong.notes.map((note, index) => ({
+      ...note,
+      lane: selectedNoteIndexes.has(index) ? note.lane : null,
+    }));
+
+    return {
+      ...sourceSong,
+      notes,
+      preserveLanes: true,
+      playbackRate: tempoPercent / 100,
+      songSettings: {
+        tempoPercent,
+        gestureCount: actionCount,
+        totalActions: playableIndexes.length,
+      },
     };
   }
 
@@ -120,9 +194,11 @@ const ExerciseBuilder = (() => {
       durationMs: leadInMs + actionIndex * plan.intervalMs + 1000,
       preserveLanes: true,
       gestureIds: activeGestures.map(gesture => gesture.id),
+      playbackRate: plan.tempoPercent / 100,
       exercise: {
         repetitions: plan.repetitions,
         intervalMs: plan.intervalMs,
+        tempoPercent: plan.tempoPercent,
         sequence: [...plan.gestureIds],
         targetFingers: targetFingerIndexes(plan, catalogue),
       },
@@ -140,22 +216,18 @@ const ExerciseBuilder = (() => {
     const activeGestures = catalogue.filter(gesture => selectedSet.has(gesture.id));
     const gestureById = new Map(catalogue.map(gesture => [gesture.id, gesture]));
     const laneById = new Map(activeGestures.map((gesture, index) => [gesture.id, index]));
-    const sourceNotes = [...sourceSong.notes]
-      .filter(note => Number.isFinite(Number(note.time)) && Number.isFinite(Number(note.note)))
-      .sort((a, b) => Number(a.time) - Number(b.time));
-    const noteGroups = [];
-
-    sourceNotes.forEach((note) => {
-      const lastGroup = noteGroups[noteGroups.length - 1];
-      if (lastGroup && Math.abs(Number(note.time) - lastGroup.time) <= 24) {
-        lastGroup.notes.push(note);
-        return;
-      }
-      noteGroups.push({ time: Number(note.time), notes: [note] });
-    });
+    const noteGroups = _groupMidiNotes(sourceSong.notes);
+    const actionCount = plan.gestureCount
+      ? Math.min(plan.gestureCount, noteGroups.length)
+      : noteGroups.length;
+    const selectedGroupIndexes = _evenlySpacedIndexes(noteGroups.length, actionCount);
+    let selectedIndex = 0;
 
     const notes = noteGroups.map((group, index) => {
-      const gestureId = plan.gestureIds[index % plan.gestureIds.length];
+      const isSelected = selectedGroupIndexes.has(index);
+      const gestureId = isSelected
+        ? plan.gestureIds[selectedIndex++ % plan.gestureIds.length]
+        : null;
       const gesture = gestureById.get(gestureId);
       const representative = group.notes.reduce((highest, note) =>
         Number(note.note) > Number(highest.note) ? note : highest
@@ -168,10 +240,10 @@ const ExerciseBuilder = (() => {
           ? Gestures.midiToName(Number(representative.note))
           : String(representative.note),
         velocity: Math.max(...group.notes.map(note => Number(note.velocity) || 80)),
-        lane: laneById.get(gestureId),
+        lane: isSelected ? laneById.get(gestureId) : null,
         gestureId,
       };
-    }).filter(note => Number.isInteger(note.lane));
+    });
 
     return {
       name: plan.name,
@@ -181,11 +253,15 @@ const ExerciseBuilder = (() => {
       gestureIds: activeGestures.map(gesture => gesture.id),
       audioUrl: sourceSong.audioUrl || null,
       audioName: sourceSong.audioName || null,
+      playbackRate: plan.tempoPercent / 100,
       exercise: {
         sequence: [...plan.gestureIds],
         targetFingers: targetFingerIndexes(plan, catalogue),
         sourceName: sourceSong.name || 'Своя песня',
         simultaneousNotesCombined: true,
+        tempoPercent: plan.tempoPercent,
+        gestureCount: actionCount,
+        totalSourceActions: noteGroups.length,
       },
     };
   }
@@ -212,6 +288,7 @@ const ExerciseBuilder = (() => {
     _els?.uploadCard?.classList.remove('selected');
     if (_els?.musicState) _els.musicState.textContent = 'Гарри Поттер выбран';
     _render();
+    _refreshSongLimits();
   }
 
   function _selectCustomMusic(song, audioFile) {
@@ -227,10 +304,48 @@ const ExerciseBuilder = (() => {
     _els.uploadCard.classList.add('selected');
     _els.musicState.textContent = `${_selectedSong.name} выбрана`;
     _render();
+    _refreshSongLimits();
   }
 
   async function _selectedSourceSong() {
     return _selectedSong || _loadBuiltInSong();
+  }
+
+  function _setSyncedControl(range, number, value) {
+    if (range) range.value = value;
+    if (number) number.value = value;
+  }
+
+  function _syncActionControls() {
+    if (!_els) return;
+    const useAll = _plan.gestureCount === 0;
+    const exactCount = useAll
+      ? _sourceActionCount
+      : Math.max(1, Math.min(_sourceActionCount, _plan.gestureCount));
+    _els.allActions.checked = useAll;
+    [_els.actionRange, _els.actionNumber].forEach((input) => {
+      input.min = '1';
+      input.max = String(_sourceActionCount);
+      input.disabled = useAll;
+    });
+    _setSyncedControl(_els.actionRange, _els.actionNumber, exactCount);
+    _els.actionValue.textContent = useAll
+      ? `Все, ${_sourceActionCount}`
+      : `${exactCount} из ${_sourceActionCount}`;
+  }
+
+  async function _refreshSongLimits() {
+    if (!_els) return;
+    try {
+      const sourceSong = await _selectedSourceSong();
+      _sourceActionCount = Math.max(1, countSongActions(sourceSong));
+      if (_plan.gestureCount > _sourceActionCount) _plan.gestureCount = _sourceActionCount;
+      _syncActionControls();
+      _render();
+    } catch (_) {
+      _sourceActionCount = 1;
+      _syncActionControls();
+    }
   }
 
   function _gestureTargets(gesture) {
@@ -348,10 +463,14 @@ const ExerciseBuilder = (() => {
     const targetNames = targetFingerIndexes().map(index => FINGER_LABELS[index]);
     _els.count.textContent = `${count} ${_plural(count, 'выбран', 'выбрано', 'выбрано')}`;
     _els.targets.textContent = targetNames.length ? targetNames.join(', ') : 'Не выбраны';
-    _els.total.textContent = actions;
-    _els.duration.textContent = _selectedSong
-      ? `${Math.max(1, Math.ceil((_selectedSong.durationMs || 0) / 60000))} мин`
-      : 'Harry Potter';
+    _els.total.textContent = _plan.gestureCount
+      ? `${Math.min(_plan.gestureCount, _sourceActionCount)} действий`
+      : actions;
+    const sourceDuration = _selectedSong?.durationMs || 34666;
+    const adjustedMinutes = sourceDuration / (_plan.tempoPercent / 100) / 60000;
+    _els.duration.textContent = `${Math.max(1, Math.ceil(adjustedMinutes))} мин`;
+    _els.tempoValue.textContent = `${_plan.tempoPercent}%`;
+    _syncActionControls();
     _els.start.disabled = count === 0;
     _els.error.textContent = '';
   }
@@ -360,6 +479,8 @@ const ExerciseBuilder = (() => {
     _els.name.value = _plan.name;
     if (_els.repetitions) _els.repetitions.value = _plan.repetitions;
     if (_els.interval) _els.interval.value = String(_plan.intervalMs);
+    _setSyncedControl(_els.tempoRange, _els.tempoNumber, _plan.tempoPercent);
+    _syncActionControls();
   }
 
   function _readFields() {
@@ -368,6 +489,8 @@ const ExerciseBuilder = (() => {
       name: _els.name.value,
       repetitions: _els.repetitions?.value ?? _plan.repetitions,
       intervalMs: _els.interval?.value ?? _plan.intervalMs,
+      tempoPercent: _els.tempoNumber.value,
+      gestureCount: _els.allActions.checked ? 0 : _els.actionNumber.value,
     });
     _syncFields();
     savePlan(_plan);
@@ -397,6 +520,13 @@ const ExerciseBuilder = (() => {
       audioInput: document.getElementById('exercise-audio-input'),
       addMusic: document.getElementById('exercise-add-music'),
       uploadError: document.getElementById('exercise-upload-error'),
+      tempoRange: document.getElementById('exercise-tempo-range'),
+      tempoNumber: document.getElementById('exercise-tempo-number'),
+      tempoValue: document.getElementById('exercise-tempo-value'),
+      allActions: document.getElementById('exercise-all-actions'),
+      actionRange: document.getElementById('exercise-action-range'),
+      actionNumber: document.getElementById('exercise-action-number'),
+      actionValue: document.getElementById('exercise-action-value'),
     };
     if (!_els.grid) return;
 
@@ -408,6 +538,31 @@ const ExerciseBuilder = (() => {
     _els.name.addEventListener('change', _readFields);
     _els.repetitions?.addEventListener('change', _readFields);
     _els.interval?.addEventListener('change', _readFields);
+    const syncTempo = (source) => {
+      const value = _clamp(source.value, 25, 200, _plan.tempoPercent);
+      _setSyncedControl(_els.tempoRange, _els.tempoNumber, value);
+      _plan.tempoPercent = value;
+      savePlan(_plan);
+      _render();
+    };
+    _els.tempoRange.addEventListener('input', () => syncTempo(_els.tempoRange));
+    _els.tempoNumber.addEventListener('input', () => syncTempo(_els.tempoNumber));
+    const syncActionCount = (source) => {
+      const value = _clamp(source.value, 1, _sourceActionCount, _sourceActionCount);
+      _setSyncedControl(_els.actionRange, _els.actionNumber, value);
+      _plan.gestureCount = value;
+      savePlan(_plan);
+      _render();
+    };
+    _els.actionRange.addEventListener('input', () => syncActionCount(_els.actionRange));
+    _els.actionNumber.addEventListener('input', () => syncActionCount(_els.actionNumber));
+    _els.allActions.addEventListener('change', () => {
+      _plan.gestureCount = _els.allActions.checked
+        ? 0
+        : _clamp(_els.actionNumber.value, 1, _sourceActionCount, _sourceActionCount);
+      savePlan(_plan);
+      _render();
+    });
     _els.clear.addEventListener('click', () => {
       _plan.gestureIds = [];
       savePlan(_plan);
@@ -450,6 +605,7 @@ const ExerciseBuilder = (() => {
         _render();
       }
     });
+    _refreshSongLimits();
   }
 
   function enter() {
@@ -458,7 +614,19 @@ const ExerciseBuilder = (() => {
     _buildGestureGrid();
     _syncFields();
     _render();
+    _refreshSongLimits();
   }
 
-  return { init, enter, normalizePlan, loadPlan, savePlan, targetFingerIndexes, createSong, createSongFromMidi };
+  return {
+    init,
+    enter,
+    normalizePlan,
+    loadPlan,
+    savePlan,
+    targetFingerIndexes,
+    countSongActions,
+    configureSong,
+    createSong,
+    createSongFromMidi,
+  };
 })();

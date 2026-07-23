@@ -345,9 +345,6 @@ const Game = (() => {
       _flashes.push({ lane, t: performance.now(), label: accuracy, points });
       _emitScore();
 
-      // Trigger MIDI note sound for visual-only notes (already played by scheduler, but re-trigger for responsiveness)
-      MidiPlayer.noteOn(best.note, 100);
-
       // Lane DOM flash
       _laneKeys[lane]?.classList.add('hit');
       setTimeout(() => _laneKeys[lane]?.classList.remove('hit'), 180);
