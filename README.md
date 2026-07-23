@@ -4,6 +4,8 @@ Flortte is an offline app for a five-finger ESP32 piano glove. The app reads the
 
 After every exercise, Flortte stores the success rate, mean timing error (MTE) and timing variability (population standard deviation). Diagnostics shows these metrics for the full session and each finger, then compares MTE with earlier attempts of the same exercise.
 
+Every built-in level and custom training supports an exact tempo from 25% to 200% and an exact gesture limit. The music continues without an extra hit sound when a gesture is completed. The offline library includes Harry Potter plus original practice MIDI arrangements themed around Синий трактор, Фиксики, Малышарики, Три кота and Маша и Медведь.
+
 ## Run locally
 
 Requirements: Node.js 22 or newer and a computer with Bluetooth enabled.

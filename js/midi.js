@@ -23,6 +23,13 @@ const MidiPlayer = (() => {
   let _tempo = parseFloat(localStorage.getItem('tempo') || '0.7');
   let _activeAudio = null;
 
+  function _playbackRate(song) {
+    const requested = Number(song?.playbackRate);
+    return Number.isFinite(requested)
+      ? Math.max(0.25, Math.min(2, requested))
+      : _tempo;
+  }
+
   function _ensureCtx() {
     if (_ctx) return;
     _ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -239,6 +246,7 @@ const MidiPlayer = (() => {
   function play(song, { onNote, onEnd, startAt = 0 } = {}) {
     _ensureCtx();
     if (_ctx.state === 'suspended') _ctx.resume();
+    const playbackRate = _playbackRate(song);
 
     let _paused = false;
     let _stopped = false;
@@ -250,7 +258,7 @@ const MidiPlayer = (() => {
     if (audio) {
       audio.preload = 'auto';
       audio.volume = _volume;
-      audio.playbackRate = _tempo;
+      audio.playbackRate = playbackRate;
       audio.currentTime = startAt / 1000;
       audio.play().catch(() => {});
       _activeAudio = audio;
@@ -261,11 +269,11 @@ const MidiPlayer = (() => {
       if (_paused || _stopped) return;
       const elapsed = audio
         ? audio.currentTime * 1000
-        : (performance.now() - _startWallTime) * _tempo + _offsetMs;
+        : (performance.now() - _startWallTime) * playbackRate + _offsetMs;
 
       while (_noteIndex < song.notes.length && song.notes[_noteIndex].time <= elapsed) {
         const n = song.notes[_noteIndex];
-        if (!audio) _playNote(n.note, n.velocity, n.duration / _tempo);
+        if (!audio) _playNote(n.note, n.velocity, n.duration / playbackRate);
         if (onNote) onNote(n, elapsed);
         _noteIndex++;
       }
@@ -287,7 +295,7 @@ const MidiPlayer = (() => {
       pause() {
         if (_paused || _stopped) return;
         _paused = true;
-        _offsetMs += (performance.now() - _startWallTime) * _tempo;
+        _offsetMs += (performance.now() - _startWallTime) * playbackRate;
         if (audio) audio.pause();
         cancelAnimationFrame(_raf);
       },
@@ -306,7 +314,7 @@ const MidiPlayer = (() => {
       },
       get currentMs() {
         if (audio) return audio.currentTime * 1000;
-        return _paused ? _offsetMs : (performance.now() - _startWallTime) * _tempo + _offsetMs;
+        return _paused ? _offsetMs : (performance.now() - _startWallTime) * playbackRate + _offsetMs;
       },
     };
   }
@@ -319,9 +327,21 @@ const MidiPlayer = (() => {
     if (_activeAudio) _activeAudio.volume = v;
   }
   function getVolume() { return _volume; }
-  function setTempo(v) { _tempo = Math.max(0.5, Math.min(1, Number(v) || 0.7)); localStorage.setItem('tempo', _tempo); if (_activeAudio) _activeAudio.playbackRate = _tempo; }
+  function setTempo(v) { _tempo = Math.max(0.25, Math.min(2, Number(v) || 0.7)); localStorage.setItem('tempo', _tempo); if (_activeAudio) _activeAudio.playbackRate = _tempo; }
   function getTempo() { return _tempo; }
   function resumeCtx() { _ensureCtx(); if (_ctx.state === 'suspended') _ctx.resume(); }
 
-  return { loadFile, loadUrl, play, noteOn, setVolume, getVolume, setTempo, getTempo, resumeCtx, assignSongPitchLanes: _assignSongPitchLanes };
+  return {
+    loadFile,
+    loadUrl,
+    play,
+    noteOn,
+    setVolume,
+    getVolume,
+    setTempo,
+    getTempo,
+    resumeCtx,
+    parseBuffer: _parseMidi,
+    assignSongPitchLanes: _assignSongPitchLanes,
+  };
 })();

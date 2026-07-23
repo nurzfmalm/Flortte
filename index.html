@@ -137,7 +137,42 @@
 
       <section class="exercise-panel">
         <div class="exercise-section-heading">
-          <div><span class="exercise-step">4</span><h3>Порядок выполнения</h3></div>
+          <div><span class="exercise-step">4</span><h3>Темп и количество жестов</h3></div>
+          <span class="exercise-save-state">Точная настройка для любой музыки</span>
+        </div>
+        <div class="exercise-playback-controls">
+          <label class="exercise-playback-control">
+            <span class="exercise-control-heading">
+              <strong>Темп</strong>
+              <span id="exercise-tempo-value">70%</span>
+            </span>
+            <span class="exercise-control-row">
+              <input id="exercise-tempo-range" type="range" min="25" max="200" step="1" value="70" />
+              <input id="exercise-tempo-number" type="number" min="25" max="200" step="1" value="70" inputmode="numeric" />
+              <span>%</span>
+            </span>
+            <small>От 25% для медленной тренировки до 200% для быстрого уровня.</small>
+          </label>
+          <div class="exercise-playback-control">
+            <span class="exercise-control-heading">
+              <strong>Количество жестов</strong>
+              <span id="exercise-action-value">Все</span>
+            </span>
+            <span class="exercise-control-row">
+              <input id="exercise-action-range" type="range" min="1" max="1" step="1" value="1" disabled />
+              <input id="exercise-action-number" type="number" min="1" max="1" step="1" value="1" inputmode="numeric" disabled />
+            </span>
+            <label class="exercise-all-actions">
+              <input id="exercise-all-actions" type="checkbox" checked />
+              <span>Использовать все жесты песни</span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <section class="exercise-panel">
+        <div class="exercise-section-heading">
+          <div><span class="exercise-step">5</span><h3>Порядок выполнения</h3></div>
           <button class="btn-ghost small" type="button" id="exercise-clear">Очистить</button>
         </div>
         <div class="exercise-sequence-empty" id="exercise-sequence-empty">Выбери хотя бы один жест выше.</div>
@@ -472,7 +507,7 @@
         </label>
         <label class="tempo-setting">
           <span>Темп песни</span>
-          <input type="range" id="settings-tempo" min="50" max="100" step="5" value="70" />
+          <input type="range" id="settings-tempo" min="25" max="200" step="1" value="70" />
           <span id="settings-tempo-val">70%</span>
         </label>
         <label>
