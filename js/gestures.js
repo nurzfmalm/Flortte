@@ -116,11 +116,6 @@ const Gestures = (() => {
     return NOTE_NAMES[n % 12] + oct;
   }
 
-  /**
-   * Classify current sensor readings into a gesture.
-   * @param {object} sensors  readings for all five fingers
-   * @returns {{ gesture, lane, note, noteName, emoji, bits }}
-   */
   function _sensorBent(name, value) {
     const thresholds = getThresholdPair(name);
     const wasBent = !!_sensorStates[name];
@@ -151,13 +146,11 @@ const Gestures = (() => {
       const value = Number(sensors?.[key]);
       const thresholds = getThresholdPair(key);
       const bent = !!_sensorStates[key];
-      const nearBent = Number.isFinite(value) &&
-        value <= Math.min(MAX_THRESHOLD, thresholds.bend + GAME_MATCH_GRACE_ADC);
       const nearStraight = Number.isFinite(value) &&
         value >= Math.max(MIN_THRESHOLD, thresholds.release - GAME_MATCH_GRACE_ADC);
 
       if (bit === 1 && bent && !nearStraight) missing++;
-      if (bit === 0 && !bent && !nearBent) extra++;
+      if (bit === 0 && !bent) extra++;
     });
 
     return { matches: missing === 0 && extra === 0, missing, extra };
@@ -190,10 +183,6 @@ const Gestures = (() => {
     };
   }
 
-  /**
-   * Legacy fallback for fixed-note mapping. Songs use their own pitch-ranked
-   * lane assignment in midi.js so real MIDI notes stay intact.
-   */
   function laneForNote(note) {
     if (typeof note !== 'number' || Number.isNaN(note)) return null;
     const normalized = ((note % 12) + 12) % 12;
@@ -217,9 +206,6 @@ const Gestures = (() => {
     return best ? _compactLaneForGesture(best) : null;
   }
 
-  /**
-   * Given a lane index, return the gesture entry for it.
-   */
   function gestureForLane(lane) {
     return playableGestures()[lane] || null;
   }
@@ -334,7 +320,8 @@ const Gestures = (() => {
       return copy;
     }, {});
   }
-  function allGestures()  { return GESTURE_MAP; }
+
+  function allGestures() { return GESTURE_MAP; }
 
   return { classify, patternFit, laneForNote, gestureForLane, playableGestures, laneCount, setThreshold, getThreshold, getThresholdPair, getThresholds, setEnabledFingers, getEnabledFingers, setActiveGestureIds, getActiveGestureIds, allGestures, midiToName };
 })();
