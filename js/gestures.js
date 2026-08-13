@@ -1,12 +1,14 @@
 /**
  * gestures.js — Flex sensor → gesture → lane/note mapping
  *
- * A sensor is "active" when its smoothed value drops below that sensor's
- * bend threshold, and stays active until it rises back to the release threshold.
- * Pressed finger = lower ADC reading for this glove wiring.
+ * After calibration the ESP32 normalizes every finger to the same direction:
+ * 0 = fully bent, 4095 = fully straight. A finger becomes bent at the bend
+ * threshold and remains bent until it reaches the higher release threshold.
  *
- * Only image-backed gestures are playable. Pattern order:
- * [thumb, index, middle, ring, little].
+ * Gesture patterns use 1 for a straight/raised finger and 0 for a bent finger.
+ * Pattern order: [thumb, index, middle, ring, little].
+ *
+ * Only image-backed gestures are playable.
  *
  *  Pattern  [0,1,2,3,4]   Ref          Lane   Role in a song
  *  ───────────────────────────────────────────────
@@ -29,7 +31,7 @@ const Gestures = (() => {
   const MAX_THRESHOLD = 4095;
   const DEFAULT_BEND_THRESHOLD = 600;
   const DEFAULT_RELEASE_THRESHOLD = 900;
-  const CLASSIFY_GRACE_ADC = 80;
+  const MIN_HYSTERESIS_ADC = 200;
   const GAME_MATCH_GRACE_ADC = 260;
 
   function _clampThreshold(value) {
@@ -39,12 +41,19 @@ const Gestures = (() => {
   }
 
   function _normalizePair(pair) {
-    const bend = _clampThreshold(pair?.bend) ?? DEFAULT_BEND_THRESHOLD;
-    const release = _clampThreshold(pair?.release) ?? Math.max(DEFAULT_RELEASE_THRESHOLD, bend);
-    return {
-      bend,
-      release: Math.max(bend, release),
-    };
+    let bend = _clampThreshold(pair?.bend) ?? DEFAULT_BEND_THRESHOLD;
+    let release = _clampThreshold(pair?.release) ?? DEFAULT_RELEASE_THRESHOLD;
+
+    if (release - bend < MIN_HYSTERESIS_ADC) {
+      if (bend + MIN_HYSTERESIS_ADC <= MAX_THRESHOLD) {
+        release = bend + MIN_HYSTERESIS_ADC;
+      } else {
+        release = MAX_THRESHOLD;
+        bend = MAX_THRESHOLD - MIN_HYSTERESIS_ADC;
+      }
+    }
+
+    return { bend, release };
   }
 
   function _readThresholds() {
@@ -87,6 +96,7 @@ const Gestures = (() => {
   };
 
   const GESTURE_MAP = [
+    // 1 = straight/raised, 0 = bent
     // [thumb, index, middle, ring, little]  name       lane  diagnostic note  keyboard
     { id: 'gesture-1', pattern: [1,1,0,0,0], name: '1. Указательный + большой',             lane: 0,    note: 60,   emoji: '1', keys: 'A+S / 1', image: 'assets/gestures/gesture-1-thumb-index.png', color: '#7c3aed', glow: '#a855f7' },
     { id: 'gesture-2', pattern: [1,0,0,0,0], name: '2. Только большой',                     lane: 1,    note: 62,   emoji: '2', keys: 'A / 2', image: 'assets/gestures/gesture-2-thumb.png', color: '#22d3a0', glow: '#34d399' },
@@ -106,20 +116,18 @@ const Gestures = (() => {
     return NOTE_NAMES[n % 12] + oct;
   }
 
-  /**
-   * Classify current sensor readings into a gesture.
-   * @param {object} sensors  readings for all five fingers
-   * @returns {{ gesture, lane, note, noteName, emoji, bits }}
-   */
-  function _sensorActive(name, value) {
+  function _sensorBent(name, value) {
     const thresholds = getThresholdPair(name);
-    const wasActive = !!_sensorStates[name];
-    const bendLimit = Math.min(MAX_THRESHOLD, thresholds.bend + CLASSIFY_GRACE_ADC);
-    const active = wasActive
-      ? value < thresholds.release
-      : value < bendLimit;
-    _sensorStates[name] = active;
-    return active;
+    const wasBent = !!_sensorStates[name];
+    const numeric = Number(value);
+
+    if (!Number.isFinite(numeric)) return wasBent;
+
+    const bent = wasBent
+      ? numeric < thresholds.release
+      : numeric <= thresholds.bend;
+    _sensorStates[name] = bent;
+    return bent;
   }
 
   function patternFit(sensors, pattern) {
@@ -130,21 +138,29 @@ const Gestures = (() => {
 
     pattern.forEach((bit, index) => {
       const key = SENSOR_KEYS[index];
+      if (_enabledFingers[key] === false) {
+        if (bit === 1) missing++;
+        return;
+      }
+
       const value = Number(sensors?.[key]);
       const thresholds = getThresholdPair(key);
-      const active = !!_sensorStates[key];
-      const nearActive = Number.isFinite(value) &&
-        value < Math.min(MAX_THRESHOLD, thresholds.bend + GAME_MATCH_GRACE_ADC);
+      const bent = !!_sensorStates[key];
+      const nearStraight = Number.isFinite(value) &&
+        value >= Math.max(MIN_THRESHOLD, thresholds.release - GAME_MATCH_GRACE_ADC);
 
-      if (bit === 1 && !active && !nearActive) missing++;
-      if (bit === 0 && active) extra++;
+      if (bit === 1 && bent && !nearStraight) missing++;
+      if (bit === 0 && !bent) extra++;
     });
 
     return { matches: missing === 0 && extra === 0, missing, extra };
   }
 
   function classify(sensors) {
-    const bits = SENSOR_KEYS.map(key => _sensorActive(key, sensors[key]) ? 1 : 0);
+    const bits = SENSOR_KEYS.map((key) => {
+      if (_enabledFingers[key] === false) return 0;
+      return _sensorBent(key, sensors?.[key]) ? 0 : 1;
+    });
 
     let match = UNSUPPORTED_GESTURE;
     for (const g of GESTURE_MAP) {
@@ -167,10 +183,6 @@ const Gestures = (() => {
     };
   }
 
-  /**
-   * Legacy fallback for fixed-note mapping. Songs use their own pitch-ranked
-   * lane assignment in midi.js so real MIDI notes stay intact.
-   */
   function laneForNote(note) {
     if (typeof note !== 'number' || Number.isNaN(note)) return null;
     const normalized = ((note % 12) + 12) % 12;
@@ -194,9 +206,6 @@ const Gestures = (() => {
     return best ? _compactLaneForGesture(best) : null;
   }
 
-  /**
-   * Given a lane index, return the gesture entry for it.
-   */
   function gestureForLane(lane) {
     return playableGestures()[lane] || null;
   }
@@ -311,7 +320,8 @@ const Gestures = (() => {
       return copy;
     }, {});
   }
-  function allGestures()  { return GESTURE_MAP; }
+
+  function allGestures() { return GESTURE_MAP; }
 
   return { classify, patternFit, laneForNote, gestureForLane, playableGestures, laneCount, setThreshold, getThreshold, getThresholdPair, getThresholds, setEnabledFingers, getEnabledFingers, setActiveGestureIds, getActiveGestureIds, allGestures, midiToName };
 })();
