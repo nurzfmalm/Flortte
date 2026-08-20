@@ -54,7 +54,7 @@
       <button class="btn-secondary small" id="btn-bluetooth-connect">Подключить FlortteGlove</button>
 
       <div class="home-actions">
-        <button class="btn-primary" id="btn-play">▶ Играть</button>
+        <button class="btn-primary" id="btn-play">▶ Быстрая тренировка</button>
         <button class="btn-secondary" id="btn-exercise">✋ Создать тренировку</button>
         <button class="btn-secondary" id="btn-diag">⊞ Диагностика</button>
         <button class="btn-ghost" id="btn-settings">⚙ Настройки</button>
@@ -66,7 +66,7 @@
   <div id="screen-songs" class="screen">
     <div class="screen-header">
       <button class="btn-back" id="songs-back">← Назад</button>
-      <div class="header-copy"><h2>Выбери мелодию</h2><p>Играй спокойно, шаг за шагом</p></div>
+      <div class="header-copy"><h2>Быстрая тренировка</h2><p>Выбери фоновое аудио. Жесты создадутся автоматически.</p></div>
     </div>
     <div class="song-list" id="song-list">
       <!-- populated by app.js -->
@@ -79,7 +79,7 @@
       <button class="btn-back" id="exercise-back">← Назад</button>
       <div class="header-copy">
         <h2>Конструктор тренировки</h2>
-        <p>Выбери жесты под нужные пальцы и поставь их в правильном порядке</p>
+        <p>Настрой жесты, ритм и время подготовки</p>
       </div>
     </div>
 
@@ -112,24 +112,19 @@
 
       <section class="exercise-panel exercise-music-panel">
         <div class="exercise-section-heading">
-          <div><span class="exercise-step">3</span><h3>Выбери музыку</h3></div>
-          <span class="exercise-music-state" id="exercise-music-state">Гарри Поттер выбран</span>
+          <div><span class="exercise-step">3</span><h3>Фоновое аудио</h3></div>
+          <span class="exercise-save-state">Не управляет плитками</span>
         </div>
-        <p class="exercise-help">Ритм берётся из MIDI. Жесты повторяются в выбранном порядке, а одновременные ноты становятся одним действием.</p>
+        <p class="exercise-help">Плитки создаются генератором тренировки. Музыка играет независимо и повторяется до конца занятия.</p>
         <div class="exercise-music-grid">
-          <button class="exercise-music-card selected" id="exercise-music-potter" type="button" aria-pressed="true">
-            <span class="exercise-music-icon">🧙</span>
-            <span><strong>Harry Potter Theme</strong><small>Уже добавлена в приложение</small></span>
-            <span class="exercise-music-check">✓</span>
-          </button>
+          <div class="exercise-audio-presets" id="exercise-audio-presets"></div>
           <div class="exercise-upload-card" id="exercise-upload-card">
             <div class="exercise-upload-heading">
               <span class="exercise-music-icon">🎧</span>
-              <span><strong>Своя песня</strong><small>Добавь аудио вместе с MIDI</small></span>
+              <span><strong>Свое аудио</strong><small>MP3, WAV, OGG, M4A или AAC</small></span>
             </div>
-            <label class="file-pick"><span>1. MIDI</span><input type="file" accept=".mid,.midi,audio/midi" id="exercise-midi-input" /></label>
-            <label class="file-pick"><span>2. Аудио</span><input type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac" id="exercise-audio-input" /></label>
-            <button class="btn-secondary" id="exercise-add-music" type="button">Добавить песню</button>
+            <label class="file-pick"><span>Аудиофайл</span><input type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac" id="exercise-audio-input" /></label>
+            <button class="btn-secondary" id="exercise-add-audio" type="button">Выбрать аудио</button>
             <p class="exercise-upload-error" id="exercise-upload-error" role="alert"></p>
           </div>
         </div>
@@ -137,43 +132,67 @@
 
       <section class="exercise-panel">
         <div class="exercise-section-heading">
-          <div><span class="exercise-step">4</span><h3>Темп и количество жестов</h3></div>
-          <span class="exercise-save-state">Точная настройка для любой музыки</span>
+          <div><span class="exercise-step">4</span><h3>Параметры тренировки</h3></div>
+          <span class="exercise-save-state">Каждая настройка влияет отдельно</span>
         </div>
-        <div class="exercise-playback-controls">
+        <div class="exercise-playback-controls exercise-training-controls">
           <label class="exercise-playback-control">
             <span class="exercise-control-heading">
-              <strong>Темп</strong>
-              <span id="exercise-tempo-value">70%</span>
+              <strong>Темп движений</strong>
+              <span id="exercise-bpm-value">70 BPM</span>
             </span>
-            <span class="exercise-control-row">
-              <input id="exercise-tempo-range" type="range" min="25" max="200" step="1" value="70" />
-              <input id="exercise-tempo-number" type="number" min="25" max="200" step="1" value="70" inputmode="numeric" />
-              <span>%</span>
+            <input id="exercise-bpm" type="range" min="30" max="180" step="1" value="70" />
+            <small>Определяет интервал между нужными жестами.</small>
+          </label>
+          <label class="exercise-playback-control">
+            <span class="exercise-control-heading">
+              <strong>Время падения</strong>
+              <span id="exercise-fall-value">2.8 с</span>
             </span>
-            <small>От 25% для медленной тренировки до 200% для быстрого уровня.</small>
+            <input id="exercise-fall-duration" type="range" min="1000" max="5000" step="100" value="2800" />
+            <small>Сколько времени плитка видна до линии попадания.</small>
+          </label>
+          <label class="exercise-playback-control">
+            <span class="exercise-control-heading">
+              <strong>Допуск попадания</strong>
+              <span id="exercise-window-value">±250 мс</span>
+            </span>
+            <input id="exercise-hit-window" type="range" min="100" max="500" step="10" value="250" />
+            <small>Меньшее значение требует более точного движения.</small>
+          </label>
+          <label class="exercise-playback-control">
+            <span class="exercise-control-heading">
+              <strong>Количество жестов</strong>
+              <span id="exercise-action-value">30</span>
+            </span>
+            <input id="exercise-action-count" type="range" min="5" max="200" step="1" value="30" />
+            <small>Объем одной попытки.</small>
+          </label>
+          <label class="exercise-playback-control">
+            <span class="exercise-control-heading"><strong>Режим генерации</strong></span>
+            <select id="exercise-generation-mode">
+              <option value="balanced">Сбалансированный</option>
+              <option value="no-repeat">Случайный без повторений</option>
+              <option value="random">Полностью случайный</option>
+              <option value="sequence">По порядку выбора</option>
+            </select>
+            <small>Сбалансированный режим дает каждому жесту близкое число повторений.</small>
           </label>
           <div class="exercise-playback-control">
             <span class="exercise-control-heading">
-              <strong>Количество жестов</strong>
-              <span id="exercise-action-value">Все</span>
+              <strong>Последовательность</strong>
+              <span id="exercise-seed-value">Seed 6767</span>
             </span>
-            <span class="exercise-control-row">
-              <input id="exercise-action-range" type="range" min="1" max="1" step="1" value="1" disabled />
-              <input id="exercise-action-number" type="number" min="1" max="1" step="1" value="1" inputmode="numeric" disabled />
-            </span>
-            <label class="exercise-all-actions">
-              <input id="exercise-all-actions" type="checkbox" checked />
-              <span>Использовать все жесты песни</span>
-            </label>
+            <button class="btn-secondary small" id="exercise-new-seed" type="button">Создать новый набор</button>
+            <small>Одинаковый seed создает тот же набор для повторного сравнения.</small>
           </div>
         </div>
       </section>
 
       <section class="exercise-panel">
         <div class="exercise-section-heading">
-          <div><span class="exercise-step">5</span><h3>Порядок выполнения</h3></div>
-          <button class="btn-ghost small" type="button" id="exercise-clear">Очистить</button>
+          <div><span class="exercise-step">5</span><h3>Предпросмотр первых 12 жестов</h3></div>
+          <button class="btn-ghost small" type="button" id="exercise-clear">Снять выбор</button>
         </div>
         <div class="exercise-sequence-empty" id="exercise-sequence-empty">Выбери хотя бы один жест выше.</div>
         <div class="exercise-sequence" id="exercise-sequence"></div>
@@ -218,7 +237,7 @@
         <div class="game-next-main">
           <span class="game-next-emoji" id="game-next-emoji">—</span>
           <div class="game-next-copy">
-            <span class="game-next-name" id="game-next-name">Ждите ноту</span>
+            <span class="game-next-name" id="game-next-name">Ждите плитку</span>
             <span class="game-next-meta" id="game-next-meta">—</span>
           </div>
         </div>
@@ -501,14 +520,9 @@
       <div class="setting-group">
         <h3>Игра</h3>
         <label>
-          <span>Скорость падения нот</span>
-          <input type="text" inputmode="numeric" pattern="[0-9]*" id="settings-speed" value="300" />
-          <span id="settings-speed-val">300 px/s</span>
-        </label>
-        <label class="tempo-setting">
-          <span>Темп песни</span>
-          <input type="range" id="settings-tempo" min="25" max="200" step="1" value="70" />
-          <span id="settings-tempo-val">70%</span>
+          <span>Время падения по умолчанию</span>
+          <input type="text" inputmode="numeric" pattern="[0-9]*" id="settings-approach" value="2800" />
+          <span id="settings-approach-val">2800 мс</span>
         </label>
         <label>
           <span>Окно попадания (мс)</span>
@@ -523,20 +537,20 @@
       </div>
       <div class="setting-group">
         <h3>Маппинг жестов</h3>
-        <p class="setting-hint">В игре используются только девять жестов с картинками. Реальные MIDI-ноты песни распределяются по лейнам от низких к высоким.</p>
+        <p class="setting-hint">В игре используются девять жестов с картинками. Генератор распределяет выбранные жесты по отдельным лейнам.</p>
         <div class="gesture-map-table">
           <div class="gmt-row header">
-            <span>Жест</span><span>Лейн</span><span>Высота в песне</span><span>Клавиши</span>
+            <span>Жест</span><span>Лейн</span><span>Роль</span><span>Клавиши</span>
           </div>
-          <div class="gmt-row"><span>1. Указательный + большой</span><span>0</span><span>самые низкие</span><span>A+S / 1</span></div>
-          <div class="gmt-row"><span>2. Только большой</span><span>1</span><span>низкие</span><span>A / 2</span></div>
-          <div class="gmt-row"><span>3. Только указательный</span><span>2</span><span>средние</span><span>S / 3</span></div>
-          <div class="gmt-row"><span>4. Указательный + средний</span><span>3</span><span>высокие</span><span>S+D / 4</span></div>
-          <div class="gmt-row"><span>Три пальца без большого и мизинца</span><span>4</span><span>выше</span><span>S+D+F / 5</span></div>
-          <div class="gmt-row"><span>Четыре пальца без большого</span><span>5</span><span>ещё выше</span><span>S+D+F+G / 6</span></div>
-          <div class="gmt-row"><span>8. Указательный + средний + большой</span><span>6</span><span>высокие</span><span>A+S+D / 8</span></div>
-          <div class="gmt-row"><span>Кулак</span><span>7</span><span>очень высокие</span><span>0</span></div>
-          <div class="gmt-row"><span>Открытая ладонь</span><span>8</span><span>самые высокие</span><span>A+S+D+F+G / 9</span></div>
+          <div class="gmt-row"><span>1. Указательный + большой</span><span>0</span><span>Выбранный жест</span><span>A+S / 1</span></div>
+          <div class="gmt-row"><span>2. Только большой</span><span>1</span><span>Выбранный жест</span><span>A / 2</span></div>
+          <div class="gmt-row"><span>3. Только указательный</span><span>2</span><span>Выбранный жест</span><span>S / 3</span></div>
+          <div class="gmt-row"><span>4. Указательный + средний</span><span>3</span><span>Выбранный жест</span><span>S+D / 4</span></div>
+          <div class="gmt-row"><span>Три пальца без большого и мизинца</span><span>4</span><span>Выбранный жест</span><span>S+D+F / 5</span></div>
+          <div class="gmt-row"><span>Четыре пальца без большого</span><span>5</span><span>Выбранный жест</span><span>S+D+F+G / 6</span></div>
+          <div class="gmt-row"><span>8. Указательный + средний + большой</span><span>6</span><span>Выбранный жест</span><span>A+S+D / 8</span></div>
+          <div class="gmt-row"><span>Кулак</span><span>7</span><span>Выбранный жест</span><span>0</span></div>
+          <div class="gmt-row"><span>Открытая ладонь</span><span>8</span><span>Выбранный жест</span><span>A+S+D+F+G / 9</span></div>
         </div>
       </div>
       <button class="btn-primary" id="settings-save">Сохранить</button>
@@ -546,7 +560,7 @@
   <!-- ═══════════════════════════════ SCRIPTS ═══════════════════════════════ -->
   <script src="js/esp32.js"></script>
   <script src="js/gestures.js"></script>
-  <script src="js/midi.js"></script>
+  <script src="js/audio.js"></script>
   <script src="js/game-results.js"></script>
   <script src="js/exercise-builder.js"></script>
   <script src="js/diagnostic-metrics.js"></script>

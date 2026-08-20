@@ -1,5 +1,5 @@
 /**
- * game.js — Synthesia/Midiano-style falling note game engine
+ * game.js — Time-based falling tile training engine
  *
  * Dynamic lanes matching the image-backed one-hand gesture combinations.
  * Notes scroll downward; player performs gesture when note hits the hit zone.
@@ -20,7 +20,7 @@ const Game = (() => {
   const HIT_ZONE_Y   = 0.82;   // fraction from top
   const NOTE_W_FRAC  = 0.78;   // note width as fraction of lane width
   const NOTE_H       = 28;     // px (logical)
-  const LOOKAHEAD_MS = 3000;   // how far ahead we render notes
+  const DEFAULT_APPROACH_MS = 2800;
   const SENSOR_KEYS  = ['keyPinch', 'indexThumb', 'middleThumb', 'ring', 'little'];
   const SENSOR_MAX   = 4095;
 
@@ -30,8 +30,10 @@ const Game = (() => {
   let _active  = false;
   let _paused  = false;
 
-  let _speed   = parseInt(localStorage.getItem('game_speed')  || '300', 10); // px/s
+  let _approachTime = parseInt(localStorage.getItem('game_approach_time') || String(DEFAULT_APPROACH_MS), 10);
+  let _sessionApproachTime = _approachTime;
   let _window  = parseInt(localStorage.getItem('game_window') || '240', 10); // hit window ms
+  let _sessionWindow = _window;
   let _noteIndex = 0;
 
   // Active note tiles on screen: { note, lane, time, duration, hit, miss, opacity }
@@ -138,7 +140,7 @@ const Game = (() => {
   }
 
   function _forgivingHitWindow() {
-    return Math.min(420, _window + 90);
+    return Math.min(560, _sessionWindow + 90);
   }
 
   function _gameScreenVisible() {
@@ -174,7 +176,7 @@ const Game = (() => {
     let next = null;
     for (const tile of _tiles) {
       if (tile.hit || tile.miss) continue;
-      if (tile.time < currentMs - _window) continue;
+      if (tile.time < currentMs - _sessionWindow) continue;
       if (!next || tile.time < next.time) next = tile;
     }
     return next;
@@ -191,7 +193,7 @@ const Game = (() => {
     if (!tile) {
       _assist.next?.style.setProperty('--next-color', 'var(--violet)');
       if (_assist.nextEmoji) _setGestureVisual(_assist.nextEmoji, null);
-      if (_assist.nextName) _assist.nextName.textContent = 'Ждите ноту';
+      if (_assist.nextName) _assist.nextName.textContent = 'Ждите плитку';
       if (_assist.nextMeta) _assist.nextMeta.textContent = '—';
       _assist.recipeChips.forEach(chip => chip.classList.remove('needed'));
       return;
@@ -199,7 +201,7 @@ const Game = (() => {
 
     const gesture = _gestureForLane(tile.lane);
     const color = gesture.color || _laneColor(tile.lane);
-    const noteName = Gestures.midiToName ? Gestures.midiToName(tile.note) : `MIDI ${tile.note}`;
+    const noteName = tile.noteName || gesture.name || 'Жест';
     const timeText = _formatTimeUntil(tile.time - currentMs);
     const meta = [noteName, gesture.keys, timeText].filter(Boolean).join(' · ');
 
@@ -311,7 +313,7 @@ const Game = (() => {
   function _onLaneActivated(lane, options = {}) {
     if (!_song) return;
     const nowMs = _playCtl ? _playCtl.currentMs : 0;
-    const hitWindow = options.windowMs || _window;
+    const hitWindow = options.windowMs || _sessionWindow;
 
     // Find the closest un-hit tile in this lane within the hit window
     let best = options.tile || null;
@@ -357,7 +359,7 @@ const Game = (() => {
 
   // ── Tile management ───────────────────────────────────────
   function _spawnTiles(currentMs) {
-    const horizon = currentMs + LOOKAHEAD_MS;
+    const horizon = currentMs + _sessionApproachTime;
     while (_noteIndex < _song.notes.length && _song.notes[_noteIndex].time <= horizon) {
       const n = _song.notes[_noteIndex++];
       if (n.lane === null || n.lane === undefined) continue; // auto-play only, no tile
@@ -367,7 +369,7 @@ const Game = (() => {
 
   function _cleanTiles(currentMs) {
     for (const tile of _tiles) {
-      if (!tile.hit && !tile.miss && tile.time < currentMs - _window) {
+      if (!tile.hit && !tile.miss && tile.time < currentMs - _sessionWindow) {
         tile.miss = true;
         _combo = 0;
         _emitScore();
@@ -445,8 +447,7 @@ const Game = (() => {
 
       // Y position: how far above hitY does this note appear
       const msAhead = tile.time - currentMs;
-      const pxPerMs = (_speed * dpr) / 1000;
-      const y = hitY - msAhead * pxPerMs;
+      const y = hitY * (1 - msAhead / _sessionApproachTime);
 
       if (y < -noteH * 2 || y > H + noteH) continue;
 
@@ -484,7 +485,7 @@ const Game = (() => {
         _ctx.fill();
       }
 
-      const noteLabel = tile.noteName || (Gestures.midiToName ? Gestures.midiToName(tile.note) : String(tile.note));
+      const noteLabel = tile.noteName || _gestureForLane(lane).name || String(tile.note);
       if (noteW > 42 * dpr) {
         _ctx.shadowBlur = 0;
         _ctx.font = `bold ${11 * dpr}px Consolas, "Courier New", monospace`;
@@ -524,8 +525,9 @@ const Game = (() => {
     stop();
     if (Gestures.setActiveGestureIds) Gestures.setActiveGestureIds(song.gestureIds || null);
     (song.notes || []).forEach(note => { delete note.resultRecorded; });
-    if (!song.preserveLanes && MidiPlayer.assignSongPitchLanes) MidiPlayer.assignSongPitchLanes(song.notes);
     _song      = song;
+    _sessionApproachTime = Math.max(1000, Math.min(5000, Number(song.approachTimeMs) || _approachTime));
+    _sessionWindow = Math.max(100, Math.min(500, Number(song.hitWindowMs) || _window));
     _noteIndex = 0;
     _tiles     = [];
     _score     = 0;
@@ -542,8 +544,8 @@ const Game = (() => {
     _syncLaneKeys();
     _resize();
 
-    _playCtl = MidiPlayer.play(song, {
-      onNote: () => {}, // audio handled by MidiPlayer, visuals by our loop
+    _playCtl = AudioPlayer.play(song, {
+      onNote: () => {},
       onEnd:  () => {
         _active = false;
         const result = GameResults.finalizeSession(_resultSession, {
@@ -588,9 +590,12 @@ const Game = (() => {
     requestAnimationFrame(_draw);
   }
 
-  function setSpeed(v)  { _speed = v;  localStorage.setItem('game_speed', v); }
+  function setApproachTime(v) {
+    _approachTime = Math.max(1000, Math.min(5000, Number(v) || DEFAULT_APPROACH_MS));
+    localStorage.setItem('game_approach_time', _approachTime);
+  }
   function setWindow(v) { _window = v; localStorage.setItem('game_window', v); }
-  function getSpeed()   { return _speed; }
+  function getApproachTime() { return _approachTime; }
   function getWindow()  { return _window; }
   function isActive()   { return _active; }
   function isPaused()   { return _paused; }
@@ -598,5 +603,5 @@ const Game = (() => {
   function onScoreChange(fn) { _scoreListeners.push(fn); }
   function onEnd(fn)         { _endListeners.push(fn); }
 
-  return { init, start, stop, pause, resume, isActive, isPaused, setSpeed, setWindow, getSpeed, getWindow, onScoreChange, onEnd };
+  return { init, start, stop, pause, resume, isActive, isPaused, setApproachTime, setWindow, getApproachTime, getWindow, onScoreChange, onEnd };
 })();

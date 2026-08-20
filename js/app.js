@@ -1,470 +1,239 @@
-/**
- * app.js — Screen router, home screen live preview, settings, song list
- *
- * Screen IDs: home | songs | exercise | game | diag | settings
- * Navigation is hash-based but fully managed here (no page reloads).
- */
-
+/** Screen routing, quick training presets, settings, and game HUD. */
 const App = (() => {
-  // ── Built-in song catalogue (MIDI files in assets/midi/) ──
-  const BUILT_IN_SONGS = [
-    {
-      name: 'Harry Potter Theme',
-      file: 'assets/midi/potter.mid',
-      audio: 'assets/audio/potter.mp3',
-      emoji: '🧙',
-      description: 'Оригинальное аудио',
-    },
-    {
-      name: 'Синий трактор: Разминка',
-      file: 'assets/midi/blue-tractor-warmup.mid',
-      emoji: '🚜',
-      description: 'Тренировочная MIDI-аранжировка',
-    },
-    {
-      name: 'Синий трактор: Животные',
-      file: 'assets/midi/blue-tractor-animals.mid',
-      emoji: '🐮',
-      description: 'Тренировочная MIDI-аранжировка',
-    },
-    {
-      name: 'Фиксики: Мастерская',
-      file: 'assets/midi/fixies-workshop.mid',
-      emoji: '🛠️',
-      description: 'Тренировочная MIDI-аранжировка',
-    },
-    {
-      name: 'Малышарики: Ладошки',
-      file: 'assets/midi/malyshariki-hands.mid',
-      emoji: '🖐️',
-      description: 'Тренировочная MIDI-аранжировка',
-    },
-    {
-      name: 'Три кота: Весёлые шаги',
-      file: 'assets/midi/three-cats-steps.mid',
-      emoji: '🐱',
-      description: 'Тренировочная MIDI-аранжировка',
-    },
-    {
-      name: 'Маша и Медведь: Дружба',
-      file: 'assets/midi/masha-friendship.mid',
-      emoji: '🐻',
-      description: 'Тренировочная MIDI-аранжировка',
-    },
-  ];
-
   let _currentScreen = 'home';
-  let _loadedSong    = null;
-  let _customSongs   = []; // user-uploaded MIDI and optional original audio
-  const SONG_SETTINGS_KEY = 'flortte_song_settings_v1';
-  let _songSettings = (() => {
-    try { return JSON.parse(localStorage.getItem(SONG_SETTINGS_KEY) || '{}'); }
-    catch (_) { return {}; }
-  })();
+  let _loadedSession = null;
 
-  function _saveSongSettings() {
-    try { localStorage.setItem(SONG_SETTINGS_KEY, JSON.stringify(_songSettings)); }
-    catch (_) {}
-  }
-
-  // ── Screen switching ──────────────────────────────────────
   function showScreen(id) {
-    // Leave hooks
-    if (_currentScreen === 'diag')     Diagnostics.leave();
-    if (_currentScreen === 'game')     Game.pause();
+    if (_currentScreen === 'diag') Diagnostics.leave();
+    if (_currentScreen === 'game') Game.pause();
 
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
     document.getElementById(`screen-${id}`)?.classList.add('active');
     _currentScreen = id;
 
-    // Enter hooks
     if (id === 'diag') Diagnostics.enter();
     if (id === 'exercise') ExerciseBuilder.enter();
-    if (id === 'game' && _loadedSong) {
+    if (id === 'game' && _loadedSession) {
       const hudName = document.getElementById('hud-song-name');
-      if (hudName) hudName.textContent = _loadedSong.name;
-      // show overlay first
-      const typeLabel = _loadedSong.exercise ? 'Тренировка' : 'Песня';
-      _showGameOverlay('Готов?', `${typeLabel}: ${_loadedSong.name}`, 'Поехали!', () => {
-        Game.start(_loadedSong);
-      });
+      if (hudName) hudName.textContent = _loadedSession.name;
+      const details = _loadedSession.exercise
+        ? `${_loadedSession.exercise.bpm} BPM · ${_loadedSession.exercise.actionCount} жестов · падение ${(_loadedSession.approachTimeMs / 1000).toFixed(1)} с`
+        : _loadedSession.name;
+      _showGameOverlay('Готов?', details, 'Поехали!', () => Game.start(_loadedSession));
     }
   }
 
-  // ── Home screen live sensor bars ─────────────────────────
   function _initHomePreview() {
-    const fills = [
-      document.getElementById('hp-f0'),
-      document.getElementById('hp-f1'),
-      document.getElementById('hp-f2'),
-      document.getElementById('hp-f3'),
-      document.getElementById('hp-f4'),
-    ];
-    const dot   = document.getElementById('esp-dot');
+    const fills = [0, 1, 2, 3, 4].map(index => document.getElementById(`hp-f${index}`));
+    const dot = document.getElementById('esp-dot');
     const label = document.getElementById('esp-status-label');
-    const MAX   = 4095;
+    const max = 4095;
 
     ESP32.onData((sensors, status) => {
-      const vals = [sensors.keyPinch, sensors.indexThumb, sensors.middleThumb, sensors.ring, sensors.little];
-      vals.forEach((v, i) => {
-        if (fills[i]) fills[i].style.width = (v / MAX * 100).toFixed(1) + '%';
+      const values = [sensors.keyPinch, sensors.indexThumb, sensors.middleThumb, sensors.ring, sensors.little];
+      values.forEach((value, index) => {
+        if (fills[index]) fills[index].style.width = `${(value / max * 100).toFixed(1)}%`;
       });
-
-      dot.className   = 'esp-dot' + (status === 'connected' ? ' connected' : status === 'error' ? ' error' : '');
+      dot.className = `esp-dot${status === 'connected' ? ' connected' : status === 'error' ? ' error' : ''}`;
       label.textContent = status === 'connected' ? 'Перчатка FlortteGlove подключена'
-                        : status === 'connecting' ? 'Подключение Bluetooth…'
-                        : status === 'error' ? `Bluetooth: ${ESP32.lastError}`
-                        : 'Bluetooth не подключён';
+        : status === 'connecting' ? 'Подключение Bluetooth…'
+        : status === 'error' ? `Bluetooth: ${ESP32.lastError}`
+        : 'Bluetooth не подключён';
       label.title = ESP32.lastError || ESP32.lastUrl;
     });
   }
 
-  // ── Song list screen ──────────────────────────────────────
-  function _buildSongList() {
+  function _buildQuickTrainingList() {
     const container = document.getElementById('song-list');
     if (!container) return;
+    container.innerHTML = '';
 
-    function _renderList() {
-      container.innerHTML = '';
-
-      const all = [
-        ...BUILT_IN_SONGS,
-        ...(_customSongs.map(s => ({
-          name: s.name,
-          _song: s,
-          emoji: '🎵',
-          description: 'Загруженная песня',
-          settingsId: `custom:${s.name}`,
-        }))),
-      ];
-
-      // Pair a MIDI chart with the user's licensed audio file.
-      const uploadCard = document.createElement('section');
-      uploadCard.className = 'upload-card';
-      uploadCard.innerHTML = `
-        <div class="upload-icon">🎧</div>
-        <div class="upload-copy"><h3>Добавь свою песню</h3><p>Выбери MIDI с нотами и аудио с оригинальным звучанием.</p></div>
-        <label class="file-pick"><span>1. MIDI</span><input type="file" accept=".mid,.midi,audio/midi" id="midi-upload-input" /></label>
-        <label class="file-pick"><span>2. Аудио</span><input type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac" id="audio-upload-input" /></label>
-        <button class="btn-primary upload-song-btn" type="button">Добавить песню</button>
-        <p class="upload-error" role="alert"></p>`;
-      uploadCard.querySelector('.upload-song-btn').addEventListener('click', async () => {
-        const midiFile = uploadCard.querySelector('#midi-upload-input').files[0];
-        const audioFile = uploadCard.querySelector('#audio-upload-input').files[0];
-        const error = uploadCard.querySelector('.upload-error');
-        error.textContent = '';
-        if (!midiFile || !audioFile) { error.textContent = 'Выбери оба файла: MIDI и аудио.'; return; }
-        try {
-          const song = await MidiPlayer.loadFile(midiFile);
-          song.audioUrl = URL.createObjectURL(audioFile);
-          song.audioName = audioFile.name;
-          _customSongs.push(song);
-          _renderList();
-        }
-        catch (err) { error.textContent = 'MIDI не открылся. Проверь файл и попробуй снова.'; }
-      });
-      container.appendChild(uploadCard);
-
-      all.forEach(entry => {
-        const settingsId = entry.settingsId || entry.file || entry.name;
-        const settings = _songSettings[settingsId] || {
-          tempoPercent: Math.round(MidiPlayer.getTempo() * 100),
-          gestureCount: 0,
-        };
-        _songSettings[settingsId] = settings;
-
-        const card = document.createElement('div');
-        card.className = 'song-card';
+    ExerciseBuilder.audioPresets()
+      .filter(preset => preset.id !== 'none')
+      .forEach((preset) => {
+        const card = document.createElement('section');
+        card.className = 'song-card quick-training-card';
         card.innerHTML = `
           <div class="song-card-main">
             <div class="song-thumb"></div>
             <div class="song-info">
               <div class="song-title"></div>
-              <div class="song-meta">Загрузка уровня…</div>
+              <div class="song-meta"></div>
             </div>
+            <button class="btn-primary song-play-button" type="button">Начать</button>
           </div>
-          <div class="song-card-controls">
-            <label class="song-control song-tempo-control">
-              <span>Темп <strong class="song-tempo-value"></strong></span>
-              <span class="song-control-row">
-                <input class="song-tempo-range" type="range" min="25" max="200" step="1" />
-                <input class="song-tempo-number" type="number" min="25" max="200" step="1" inputmode="numeric" />
-                <span>%</span>
-              </span>
-            </label>
-            <label class="song-control song-action-control">
-              <span>Количество жестов <strong class="song-action-value">…</strong></span>
-              <span class="song-control-row">
-                <input class="song-action-range" type="range" min="1" max="1" step="1" disabled />
-                <input class="song-action-number" type="number" min="1" max="1" step="1" inputmode="numeric" disabled />
-              </span>
-            </label>
-            <label class="song-all-actions">
-              <input class="song-all-checkbox" type="checkbox" checked />
-              <span>Все жесты песни</span>
-            </label>
-            <button class="btn-primary song-play-button" type="button">Играть</button>
-          </div>
-          <p class="song-card-error" role="alert"></p>
-        `;
-        card.querySelector('.song-thumb').textContent = entry.emoji;
-        card.querySelector('.song-title').textContent = entry.name;
-
-        const meta = card.querySelector('.song-meta');
-        const tempoRange = card.querySelector('.song-tempo-range');
-        const tempoNumber = card.querySelector('.song-tempo-number');
-        const tempoValue = card.querySelector('.song-tempo-value');
-        const actionRange = card.querySelector('.song-action-range');
-        const actionNumber = card.querySelector('.song-action-number');
-        const actionValue = card.querySelector('.song-action-value');
-        const allCheckbox = card.querySelector('.song-all-checkbox');
-        const playButton = card.querySelector('.song-play-button');
+          <p class="song-card-error" role="alert"></p>`;
+        card.querySelector('.song-thumb').textContent = preset.emoji;
+        card.querySelector('.song-title').textContent = preset.name;
+        card.querySelector('.song-meta').textContent = `30 жестов · ${preset.defaultBpm} BPM · сбалансированный набор`;
+        const button = card.querySelector('.song-play-button');
         const error = card.querySelector('.song-card-error');
-        let totalActions = 1;
-
-        const clamp = (value, min, max, fallback) => {
-          const numeric = parseInt(value, 10);
-          return Number.isFinite(numeric) ? Math.max(min, Math.min(max, numeric)) : fallback;
-        };
-        const syncTempo = (value) => {
-          settings.tempoPercent = clamp(value, 25, 200, 70);
-          tempoRange.value = settings.tempoPercent;
-          tempoNumber.value = settings.tempoPercent;
-          tempoValue.textContent = `${settings.tempoPercent}%`;
-          _saveSongSettings();
-        };
-        const syncActions = (value = settings.gestureCount) => {
-          const useAll = allCheckbox.checked;
-          settings.gestureCount = useAll ? 0 : clamp(value, 1, totalActions, totalActions);
-          const exact = settings.gestureCount || totalActions;
-          actionRange.value = exact;
-          actionNumber.value = exact;
-          actionRange.disabled = useAll;
-          actionNumber.disabled = useAll;
-          actionValue.textContent = useAll ? `Все, ${totalActions}` : `${exact} из ${totalActions}`;
-          _saveSongSettings();
-        };
-        const updateLoadedState = (song) => {
-          totalActions = Math.max(1, song.notes.filter(note => Number.isInteger(note.lane)).length);
-          actionRange.max = totalActions;
-          actionNumber.max = totalActions;
-          if (settings.gestureCount > totalActions) settings.gestureCount = totalActions;
-          allCheckbox.checked = settings.gestureCount === 0;
-          const seconds = Math.max(1, Math.ceil(song.durationMs / 1000));
-          const audioType = song.audioUrl ? 'оригинальное аудио' : 'MIDI-звук';
-          meta.textContent = `${totalActions} жестов · ${seconds} сек · ${audioType} · ${entry.description}`;
-          syncActions(settings.gestureCount);
-        };
-        const ensureLoaded = async () => {
-          if (entry._song) return entry._song;
-          const song = await MidiPlayer.loadUrl(entry.file);
-          song.name = entry.name;
-          if (entry.audio) {
-            song.audioUrl = entry.audio;
-            song.audioName = entry.audio.split('/').pop();
-          }
-          entry._song = song;
-          return song;
-        };
-
-        syncTempo(settings.tempoPercent);
-        tempoRange.addEventListener('input', () => syncTempo(tempoRange.value));
-        tempoNumber.addEventListener('input', () => syncTempo(tempoNumber.value));
-        actionRange.addEventListener('input', () => syncActions(actionRange.value));
-        actionNumber.addEventListener('input', () => syncActions(actionNumber.value));
-        allCheckbox.addEventListener('change', () => syncActions(actionNumber.value));
-        playButton.addEventListener('click', async () => {
-          playButton.disabled = true;
-          playButton.textContent = 'Загрузка…';
+        button.addEventListener('click', () => {
           error.textContent = '';
           try {
-            const song = await ensureLoaded();
-            _loadedSong = ExerciseBuilder.configureSong(song, settings);
+            _loadedSession = ExerciseBuilder.createQuickTraining(preset.id, undefined, {
+              fallDurationMs: Game.getApproachTime(),
+              hitWindowMs: Game.getWindow(),
+            });
             showScreen('game');
-          } catch (err) {
-            error.textContent = `Не удалось загрузить уровень: ${err.message}`;
-          } finally {
-            playButton.disabled = false;
-            playButton.textContent = 'Играть';
+          } catch (caught) {
+            error.textContent = caught.message || 'Не удалось создать тренировку.';
           }
         });
-
         container.appendChild(card);
-        ensureLoaded()
-          .then(updateLoadedState)
-          .catch((err) => {
-            meta.textContent = 'Уровень не загрузился';
-            error.textContent = err.message;
-            playButton.disabled = true;
-          });
       });
-    }
-
-    _renderList();
   }
 
-  // ── Game overlay ──────────────────────────────────────────
-  function _showGameOverlay(title, sub, btnText, onBtn, secondaryText = '', onSecondary = null) {
+  function _showGameOverlay(title, sub, buttonText, onButton, secondaryText = '', onSecondary = null) {
     const overlay = document.getElementById('game-overlay');
-    const oTitle  = document.getElementById('overlay-title');
-    const oSub    = document.getElementById('overlay-sub');
-    const oBtn    = document.getElementById('overlay-btn');
-    const secondaryBtn = document.getElementById('overlay-secondary-btn');
+    const titleElement = document.getElementById('overlay-title');
+    const subtitle = document.getElementById('overlay-sub');
+    const button = document.getElementById('overlay-btn');
+    const secondary = document.getElementById('overlay-secondary-btn');
 
-    oTitle.textContent = title;
-    oSub.textContent   = sub;
-    oBtn.textContent   = btnText;
+    titleElement.textContent = title;
+    subtitle.textContent = sub;
+    button.textContent = buttonText;
     overlay.classList.remove('hidden');
-
-    oBtn.onclick = () => {
+    button.onclick = () => {
       overlay.classList.add('hidden');
-      if (onBtn) onBtn();
+      if (onButton) onButton();
     };
-    secondaryBtn.textContent = secondaryText;
-    secondaryBtn.classList.toggle('hidden', !secondaryText);
-    secondaryBtn.onclick = secondaryText ? () => {
+    secondary.textContent = secondaryText;
+    secondary.classList.toggle('hidden', !secondaryText);
+    secondary.onclick = secondaryText ? () => {
       overlay.classList.add('hidden');
       if (onSecondary) onSecondary();
     } : null;
   }
 
-  // ── Game HUD updates ──────────────────────────────────────
   function _bindGameHud() {
-    const scoreEl = document.getElementById('hud-score');
-    const comboEl = document.getElementById('hud-combo');
+    const scoreElement = document.getElementById('hud-score');
+    const comboElement = document.getElementById('hud-combo');
     Game.onScoreChange(({ score, combo }) => {
-      scoreEl.textContent = score.toLocaleString();
-      comboEl.textContent = combo > 1 ? `x${combo}` : '';
+      scoreElement.textContent = score.toLocaleString();
+      comboElement.textContent = combo > 1 ? `x${combo}` : '';
     });
 
     Game.onEnd(({ score, hits, totalNotes, successPercent, timing }) => {
-      const isExercise = !!_loadedSong?.exercise;
       const timingText = timing?.meanErrorMs !== null
         && timing?.meanErrorMs !== undefined
         && Number.isFinite(Number(timing.meanErrorMs))
         ? ` · MTE: ${Number(timing.meanErrorMs).toFixed(1)} мс · SD: ${Number(timing.variabilityMs).toFixed(1)} мс`
         : '';
       _showGameOverlay(
-        isExercise ? '🎉 Тренировка завершена!' : '🎉 Готово!',
-        `Счёт: ${score.toLocaleString()} · Успех: ${successPercent}% · ${hits} из ${totalNotes} нот${timingText}`,
-        isExercise ? 'Повторить тренировку' : 'Сыграть ещё',
+        '🎉 Тренировка завершена!',
+        `Счёт: ${score.toLocaleString()} · Успех: ${successPercent}% · ${hits} из ${totalNotes} плиток${timingText}`,
+        'Повторить тренировку',
         () => {
-          if (_loadedSong) Game.start(_loadedSong);
+          if (_loadedSession) Game.start(_loadedSession);
+        },
+        'Выйти в меню',
+        () => {
+          Game.stop();
+          showScreen('home');
         }
       );
     });
   }
 
-  // ── Settings screen ───────────────────────────────────────
   function _bindSettings() {
     const bluetoothButton = document.getElementById('settings-bluetooth-connect');
-    const speedInput = document.getElementById('settings-speed');
-    const speedVal   = document.getElementById('settings-speed-val');
-    const tempoInput = document.getElementById('settings-tempo');
-    const tempoVal   = document.getElementById('settings-tempo-val');
-    const winInput   = document.getElementById('settings-window');
-    const winVal     = document.getElementById('settings-window-val');
-    const volInput   = document.getElementById('settings-vol');
-    const volVal     = document.getElementById('settings-vol-val');
-    const saveBtn    = document.getElementById('settings-save');
+    const approachInput = document.getElementById('settings-approach');
+    const approachValue = document.getElementById('settings-approach-val');
+    const windowInput = document.getElementById('settings-window');
+    const windowValue = document.getElementById('settings-window-val');
+    const volumeInput = document.getElementById('settings-vol');
+    const volumeValue = document.getElementById('settings-vol-val');
+    const saveButton = document.getElementById('settings-save');
+    if (!saveButton) return;
 
-    if (!saveBtn) return;
-
-    const readBoundedNumber = (input, min, max, fallback) => {
-      const text = String(input.value || '').trim();
-      const numeric = /^\d+$/.test(text) ? parseInt(text, 10) : NaN;
-      const value = Number.isFinite(numeric)
-        ? Math.max(min, Math.min(max, numeric))
-        : fallback;
+    const readNumber = (input, min, max, fallback) => {
+      const numeric = /^\d+$/.test(String(input.value || '').trim()) ? parseInt(input.value, 10) : NaN;
+      const value = Number.isFinite(numeric) ? Math.max(min, Math.min(max, numeric)) : fallback;
       input.value = value;
       input.classList.remove('input-error');
       return value;
     };
-
-    const markBoundedNumber = (input, min, max) => {
-      const text = String(input.value || '').trim();
-      const numeric = /^\d+$/.test(text) ? parseInt(text, 10) : NaN;
+    const markNumber = (input, min, max) => {
+      const numeric = /^\d+$/.test(String(input.value || '').trim()) ? parseInt(input.value, 10) : NaN;
       const valid = Number.isFinite(numeric) && numeric >= min && numeric <= max;
       input.classList.toggle('input-error', !valid);
-      return valid;
     };
 
-    // Load current values
-    speedInput.value = Game.getSpeed();
-    speedVal.textContent = Game.getSpeed() + ' px/s';
-    tempoInput.value = Math.round(MidiPlayer.getTempo() * 100);
-    tempoVal.textContent = tempoInput.value + '%';
-    winInput.value   = Game.getWindow();
-    winVal.textContent   = Game.getWindow();
-    volInput.value   = Math.round(MidiPlayer.getVolume() * 100);
-    volVal.textContent   = Math.round(MidiPlayer.getVolume() * 100) + '%';
+    approachInput.value = Game.getApproachTime();
+    approachValue.textContent = `${Game.getApproachTime()} мс`;
+    windowInput.value = Game.getWindow();
+    windowValue.textContent = Game.getWindow();
+    volumeInput.value = Math.round(AudioPlayer.getVolume() * 100);
+    volumeValue.textContent = `${volumeInput.value}%`;
 
-    tempoInput.addEventListener('input', () => { tempoVal.textContent = tempoInput.value + '%'; });
-    speedInput.addEventListener('input', () => {
-      markBoundedNumber(speedInput, 100, 600);
-      speedVal.textContent = speedInput.value + ' px/s';
+    approachInput.addEventListener('input', () => {
+      markNumber(approachInput, 1000, 5000);
+      approachValue.textContent = `${approachInput.value} мс`;
     });
-    winInput.addEventListener('input',   () => {
-      markBoundedNumber(winInput, 80, 400);
-      winVal.textContent   = winInput.value;
+    windowInput.addEventListener('input', () => {
+      markNumber(windowInput, 100, 500);
+      windowValue.textContent = windowInput.value;
     });
-    volInput.addEventListener('input',   () => {
-      markBoundedNumber(volInput, 0, 100);
-      volVal.textContent   = volInput.value + '%';
+    volumeInput.addEventListener('input', () => {
+      markNumber(volumeInput, 0, 100);
+      volumeValue.textContent = `${volumeInput.value}%`;
     });
 
-    saveBtn.addEventListener('click', () => {
-      const speed = readBoundedNumber(speedInput, 100, 600, Game.getSpeed());
-      const tempo = readBoundedNumber(tempoInput, 25, 200, Math.round(MidiPlayer.getTempo() * 100));
-      const hitWindow = readBoundedNumber(winInput, 80, 400, Game.getWindow());
-      const volume = readBoundedNumber(volInput, 0, 100, Math.round(MidiPlayer.getVolume() * 100));
-
-      Game.setSpeed(speed);
-      MidiPlayer.setTempo(tempo / 100);
+    saveButton.addEventListener('click', () => {
+      const approach = readNumber(approachInput, 1000, 5000, Game.getApproachTime());
+      const hitWindow = readNumber(windowInput, 100, 500, Game.getWindow());
+      const volume = readNumber(volumeInput, 0, 100, Math.round(AudioPlayer.getVolume() * 100));
+      Game.setApproachTime(approach);
       Game.setWindow(hitWindow);
-      MidiPlayer.setVolume(volume / 100);
-      speedVal.textContent = speed + ' px/s';
-      tempoVal.textContent = tempo + '%';
-      winVal.textContent = hitWindow;
-      volVal.textContent = volume + '%';
-
-      saveBtn.textContent = '✓ Сохранено';
-      setTimeout(() => { saveBtn.textContent = 'Сохранить'; }, 1500);
+      AudioPlayer.setVolume(volume / 100);
+      approachValue.textContent = `${approach} мс`;
+      windowValue.textContent = hitWindow;
+      volumeValue.textContent = `${volume}%`;
+      saveButton.textContent = '✓ Сохранено';
+      setTimeout(() => { saveButton.textContent = 'Сохранить'; }, 1500);
     });
 
     bluetoothButton?.addEventListener('click', async () => {
       bluetoothButton.disabled = true;
-      try { await ESP32.connect(); bluetoothButton.textContent = '✓ FlortteGlove подключена'; }
-      catch (_) { bluetoothButton.textContent = ESP32.lastError || 'Ошибка Bluetooth'; }
-      finally { bluetoothButton.disabled = false; }
+      try {
+        await ESP32.connect();
+        bluetoothButton.textContent = '✓ FlortteGlove подключена';
+      } catch (_) {
+        bluetoothButton.textContent = ESP32.lastError || 'Ошибка Bluetooth';
+      } finally {
+        bluetoothButton.disabled = false;
+      }
     });
   }
 
-  // ── Wire navigation buttons ───────────────────────────────
   function _wireNav() {
-    const nav = (btnId, target) => {
-      const el = document.getElementById(btnId);
-      if (el) el.addEventListener('click', () => showScreen(target));
+    const nav = (buttonId, target) => {
+      document.getElementById(buttonId)?.addEventListener('click', () => showScreen(target));
     };
-
-    nav('btn-play',      'songs');
-    nav('btn-exercise',  'exercise');
-    nav('btn-diag',      'diag');
-    nav('btn-settings',  'settings');
-    nav('songs-back',    'home');
+    nav('btn-play', 'songs');
+    nav('btn-exercise', 'exercise');
+    nav('btn-diag', 'diag');
+    nav('btn-settings', 'settings');
+    nav('songs-back', 'home');
     nav('exercise-back', 'home');
-    nav('diag-back',     'home');
+    nav('diag-back', 'home');
     nav('settings-back', 'home');
 
     document.getElementById('btn-bluetooth-connect')?.addEventListener('click', async (event) => {
       const button = event.currentTarget;
       button.disabled = true;
-      try { await ESP32.connect(); button.textContent = '✓ FlortteGlove подключена'; }
-      catch (_) { button.textContent = 'Повторить подключение'; }
-      finally { button.disabled = false; }
+      try {
+        await ESP32.connect();
+        button.textContent = '✓ FlortteGlove подключена';
+      } catch (_) {
+        button.textContent = 'Повторить подключение';
+      } finally {
+        button.disabled = false;
+      }
     });
 
-    // Confirm leaving so an accidental tap does not erase the current session.
     document.getElementById('game-back')?.addEventListener('click', () => {
       const wasActive = Game.isActive();
       if (wasActive) Game.pause();
@@ -493,135 +262,90 @@ const App = (() => {
       KeyF: { index: 3, label: 'Безымянный' },
       KeyG: { index: 4, label: 'Мизинец' },
     };
-
-    const comboByKey = {
-      '1': { bits: [1,1,0,0,0], label: '1. Указательный + большой' },
-      '2': { bits: [1,0,0,0,0], label: '2. Только большой' },
-      '3': { bits: [0,1,0,0,0], label: '3. Только указательный' },
-      '4': { bits: [0,1,1,0,0], label: '4. Указательный + средний' },
-      '5': { bits: [0,1,1,1,0], label: 'Три пальца без большого и мизинца' },
-      '6': { bits: [0,1,1,1,1], label: 'Четыре пальца без большого' },
-      '8': { bits: [1,1,1,0,0], label: '8. Указательный + средний + большой' },
-      '0': { bits: [0,0,0,0,0], label: 'Кулак' },
-      '9': { bits: [1,1,1,1,1], label: 'Открытая ладонь' },
-    };
-
     const comboByCode = {
-      Digit0: comboByKey['0'],
-      Digit1: comboByKey['1'],
-      Digit2: comboByKey['2'],
-      Digit3: comboByKey['3'],
-      Digit4: comboByKey['4'],
-      Digit5: comboByKey['5'],
-      Digit6: comboByKey['6'],
-      Digit8: comboByKey['8'],
-      Digit9: comboByKey['9'],
-      Numpad0: comboByKey['0'],
-      Numpad1: comboByKey['1'],
-      Numpad2: comboByKey['2'],
-      Numpad3: comboByKey['3'],
-      Numpad4: comboByKey['4'],
-      Numpad5: comboByKey['5'],
-      Numpad6: comboByKey['6'],
-      Numpad8: comboByKey['8'],
-      Numpad9: comboByKey['9'],
+      Digit0: { bits: [0, 0, 0, 0, 0], label: 'Кулак' },
+      Digit1: { bits: [1, 1, 0, 0, 0], label: 'Указательный + большой' },
+      Digit2: { bits: [1, 0, 0, 0, 0], label: 'Только большой' },
+      Digit3: { bits: [0, 1, 0, 0, 0], label: 'Только указательный' },
+      Digit4: { bits: [0, 1, 1, 0, 0], label: 'Указательный + средний' },
+      Digit5: { bits: [0, 1, 1, 1, 0], label: 'Три пальца' },
+      Digit6: { bits: [0, 1, 1, 1, 1], label: 'Четыре пальца' },
+      Digit8: { bits: [1, 1, 1, 0, 0], label: 'Три пальца с большим' },
+      Digit9: { bits: [1, 1, 1, 1, 1], label: 'Открытая ладонь' },
     };
-
+    Object.keys(comboByCode).forEach((code) => {
+      comboByCode[code.replace('Digit', 'Numpad')] = comboByCode[code];
+    });
     const heldFingerBits = [0, 0, 0, 0, 0];
     const heldCombos = new Map();
-
-    const makeValues = (bits) => ({
-      keyPinch:    bits[0] ? 50 : 3600,
-      indexThumb:  bits[1] ? 50 : 3600,
+    const isTyping = target => target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
+    const makeValues = bits => ({
+      keyPinch: bits[0] ? 50 : 3600,
+      indexThumb: bits[1] ? 50 : 3600,
       middleThumb: bits[2] ? 50 : 3600,
-      ring:        bits[3] ? 50 : 3600,
-      little:      bits[4] ? 50 : 3600,
+      ring: bits[3] ? 50 : 3600,
+      little: bits[4] ? 50 : 3600,
     });
-
-    const isTypingTarget = (target) =>
-      target && (target.isContentEditable || ['INPUT','TEXTAREA','SELECT'].includes(target.tagName));
-
-    const getComboEntry = (event) => comboByCode[event.code] || comboByKey[event.key];
-
-    const currentKeyboardBits = () => {
-      const activeCombos = Array.from(heldCombos.values());
-      return activeCombos.length ? activeCombos[activeCombos.length - 1].bits : heldFingerBits;
+    const currentBits = () => {
+      const combos = Array.from(heldCombos.values());
+      return combos.length ? combos[combos.length - 1].bits : heldFingerBits;
     };
-
-    const emitKeyboardSensors = () => {
-      ESP32.injectSensors(makeValues(currentKeyboardBits()));
-    };
+    const emit = () => ESP32.injectSensors(makeValues(currentBits()));
 
     document.addEventListener('keydown', (event) => {
-      if (isTypingTarget(event.target)) return;
-
-      const comboEntry = getComboEntry(event);
-      if (comboEntry) {
+      if (isTyping(event.target)) return;
+      const combo = comboByCode[event.code];
+      if (combo) {
         if (event.repeat && heldCombos.has(event.code)) return;
         event.preventDefault();
-        heldCombos.set(event.code, comboEntry);
-        emitKeyboardSensors();
-        MidiPlayer.resumeCtx();
-        console.debug(`Keyboard gesture: ${comboEntry.label}`, comboEntry.bits);
+        heldCombos.set(event.code, combo);
+        emit();
+        AudioPlayer.resumeCtx();
         return;
       }
-
-      const fingerEntry = fingerKeyMap[event.code];
-      if (!fingerEntry || event.repeat) return;
+      const finger = fingerKeyMap[event.code];
+      if (!finger || event.repeat) return;
       event.preventDefault();
-      heldFingerBits[fingerEntry.index] = 1;
-      emitKeyboardSensors();
-      MidiPlayer.resumeCtx();
-      console.debug(`Keyboard finger: ${fingerEntry.label}`, heldFingerBits);
+      heldFingerBits[finger.index] = 1;
+      emit();
+      AudioPlayer.resumeCtx();
     });
 
     document.addEventListener('keyup', (event) => {
-      if (isTypingTarget(event.target)) return;
-
-      const comboEntry = getComboEntry(event);
-      if (comboEntry) {
+      if (isTyping(event.target)) return;
+      if (comboByCode[event.code]) {
         event.preventDefault();
         heldCombos.delete(event.code);
-        emitKeyboardSensors();
+        emit();
         return;
       }
-
-      const fingerEntry = fingerKeyMap[event.code];
-      if (!fingerEntry) return;
+      const finger = fingerKeyMap[event.code];
+      if (!finger) return;
       event.preventDefault();
-      heldFingerBits[fingerEntry.index] = 0;
-      emitKeyboardSensors();
+      heldFingerBits[finger.index] = 0;
+      emit();
     });
   }
 
-  // ── Boot ──────────────────────────────────────────────────
   function init() {
-    // Init all modules
     Diagnostics.init();
     GloveSettings.init();
     Game.init();
-    ExerciseBuilder.init((song) => {
-      _loadedSong = song;
+    ExerciseBuilder.init((session) => {
+      _loadedSession = session;
       showScreen('game');
     });
-
     _initHomePreview();
-    _buildSongList();
+    _buildQuickTrainingList();
     _bindGameHud();
     _bindSettings();
     _wireNav();
     _wireDebugKeys();
-
-    // Start ESP32 polling
     ESP32.start();
-
-    // Unlock AudioContext on first interaction
-    document.addEventListener('click', () => MidiPlayer.resumeCtx(), { once: true });
-
+    document.addEventListener('click', () => AudioPlayer.resumeCtx(), { once: true });
     showScreen('home');
   }
 
   document.addEventListener('DOMContentLoaded', init);
-
   return { showScreen };
 })();
