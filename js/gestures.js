@@ -57,10 +57,11 @@ const Gestures = (() => {
   }
 
   function _readThresholds() {
-    const legacy = _clampThreshold(localStorage.getItem('gesture_threshold')) ?? DEFAULT_BEND_THRESHOLD;
+    let legacy = DEFAULT_BEND_THRESHOLD;
     let saved = {};
 
     try {
+      legacy = _clampThreshold(localStorage.getItem('gesture_threshold')) ?? DEFAULT_BEND_THRESHOLD;
       saved = JSON.parse(localStorage.getItem('gesture_thresholds') || '{}') || {};
     } catch {
       saved = {};
@@ -85,6 +86,7 @@ const Gestures = (() => {
     return enabled;
   }, {});
   let _activeGestureIds = null;
+  let _lastStorageError = '';
 
   const UNSUPPORTED_GESTURE = {
     id: 'unsupported',
@@ -133,6 +135,11 @@ const Gestures = (() => {
   function patternFit(sensors, pattern) {
     if (!Array.isArray(pattern)) return { matches: false, missing: 0, extra: 0 };
 
+    const invalidInput = SENSOR_KEYS.some(key => (
+      _enabledFingers[key] !== false && !Number.isFinite(Number(sensors?.[key]))
+    ));
+    if (invalidInput) return { matches: false, missing: 1, extra: 0 };
+
     let missing = 0;
     let extra = 0;
 
@@ -157,6 +164,20 @@ const Gestures = (() => {
   }
 
   function classify(sensors) {
+    const invalidInput = SENSOR_KEYS.some(key => (
+      _enabledFingers[key] !== false && !Number.isFinite(Number(sensors?.[key]))
+    ));
+    if (invalidInput) {
+      return {
+        gesture: UNSUPPORTED_GESTURE,
+        lane: null,
+        note: null,
+        noteName: pitchToName(null),
+        emoji: UNSUPPORTED_GESTURE.emoji,
+        bits: SENSOR_KEYS.map(() => 0),
+      };
+    }
+
     const bits = SENSOR_KEYS.map((key) => {
       if (_enabledFingers[key] === false) return 0;
       return _sensorBent(key, sensors?.[key]) ? 0 : 1;
@@ -267,8 +288,15 @@ const Gestures = (() => {
   }
 
   function _saveThresholds() {
-    localStorage.setItem('gesture_thresholds', JSON.stringify(_thresholds));
-    localStorage.setItem('gesture_threshold', getThreshold(null, 'bend'));
+    try {
+      localStorage.setItem('gesture_thresholds', JSON.stringify(_thresholds));
+      localStorage.setItem('gesture_threshold', getThreshold(null, 'bend'));
+      _lastStorageError = '';
+      return true;
+    } catch (error) {
+      _lastStorageError = error?.message || String(error);
+      return false;
+    }
   }
 
   function setThreshold(name, type, value) {
@@ -323,5 +351,11 @@ const Gestures = (() => {
 
   function allGestures() { return GESTURE_MAP; }
 
-  return { classify, patternFit, laneForPitch, gestureForLane, playableGestures, laneCount, setThreshold, getThreshold, getThresholdPair, getThresholds, setEnabledFingers, getEnabledFingers, setActiveGestureIds, getActiveGestureIds, allGestures, pitchToName };
+  return {
+    classify, patternFit, laneForPitch, gestureForLane, playableGestures, laneCount,
+    setThreshold, getThreshold, getThresholdPair, getThresholds,
+    setEnabledFingers, getEnabledFingers, setActiveGestureIds, getActiveGestureIds,
+    allGestures, pitchToName,
+    get lastStorageError() { return _lastStorageError; },
+  };
 })();

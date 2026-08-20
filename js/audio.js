@@ -1,9 +1,25 @@
 /** Audio playback and generated note feedback for Flortte training sessions. */
 const AudioPlayer = (() => {
+  const DEFAULT_VOLUME = 0.8;
   let _ctx = null;
   let _masterGain = null;
   let _activeAudio = null;
-  let _volume = parseFloat(localStorage.getItem('volume') || '0.8');
+
+  function _normalizeVolume(value, fallback = 0) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? Math.max(0, Math.min(1, numeric)) : fallback;
+  }
+
+  function _readVolume() {
+    try {
+      const saved = localStorage.getItem('volume');
+      return saved === null ? DEFAULT_VOLUME : _normalizeVolume(saved, DEFAULT_VOLUME);
+    } catch (_) {
+      return DEFAULT_VOLUME;
+    }
+  }
+
+  let _volume = _readVolume();
 
   function _ensureCtx() {
     if (_ctx) return;
@@ -119,8 +135,8 @@ const AudioPlayer = (() => {
   }
 
   function setVolume(value) {
-    _volume = Math.max(0, Math.min(1, Number(value) || 0));
-    localStorage.setItem('volume', _volume);
+    _volume = _normalizeVolume(value, 0);
+    try { localStorage.setItem('volume', _volume); } catch (_) {}
     if (_masterGain) _masterGain.gain.value = _volume;
     if (_activeAudio) _activeAudio.volume = _volume;
   }

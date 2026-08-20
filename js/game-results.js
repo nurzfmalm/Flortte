@@ -103,7 +103,16 @@ const GameResults = (() => {
   function loadHistory() {
     try {
       const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-      return Array.isArray(parsed) ? parsed : [];
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .filter(item => item && typeof item === 'object' && !Array.isArray(item))
+        .map(item => ({
+          ...item,
+          timing: item.timing && typeof item.timing === 'object' ? item.timing : {},
+          fingers: Array.isArray(item.fingers)
+            ? item.fingers.filter(finger => finger && typeof finger === 'object')
+            : [],
+        }));
     } catch (_) {
       return [];
     }

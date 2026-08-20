@@ -24,15 +24,35 @@ const Game = (() => {
   const SENSOR_KEYS  = ['keyPinch', 'indexThumb', 'middleThumb', 'ring', 'little'];
   const SENSOR_MAX   = 4095;
 
+  function _boundedNumber(value, fallback, min, max) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric)
+      ? Math.max(min, Math.min(max, numeric))
+      : fallback;
+  }
+
+  function _readStoredNumber(key, fallback, min, max) {
+    try {
+      const saved = localStorage.getItem(key);
+      return saved === null ? fallback : _boundedNumber(saved, fallback, min, max);
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  function _saveSetting(key, value) {
+    try { localStorage.setItem(key, value); } catch (_) {}
+  }
+
   let _canvas, _ctx;
   let _song    = null;
   let _playCtl = null;
   let _active  = false;
   let _paused  = false;
 
-  let _approachTime = parseInt(localStorage.getItem('game_approach_time') || String(DEFAULT_APPROACH_MS), 10);
+  let _approachTime = _readStoredNumber('game_approach_time', DEFAULT_APPROACH_MS, 1000, 5000);
   let _sessionApproachTime = _approachTime;
-  let _window  = parseInt(localStorage.getItem('game_window') || '240', 10); // hit window ms
+  let _window  = _readStoredNumber('game_window', 240, 100, 500); // hit window ms
   let _sessionWindow = _window;
   let _noteIndex = 0;
 
@@ -390,10 +410,19 @@ const Game = (() => {
   }
 
   // ── Draw ──────────────────────────────────────────────────
-  let _lastRaf = 0;
+  let _rafId = null;
+
+  function _scheduleDraw() {
+    if (!_active || _paused || _rafId !== null) return;
+    _rafId = requestAnimationFrame((timestamp) => {
+      _rafId = null;
+      _draw(timestamp);
+    });
+  }
+
   function _draw(ts) {
-    if (!_active) return;
-    requestAnimationFrame(_draw);
+    if (!_active || _paused) return;
+    _scheduleDraw();
     if (!_playCtl) return;
 
     const W = _canvas.width;
@@ -526,8 +555,8 @@ const Game = (() => {
     if (Gestures.setActiveGestureIds) Gestures.setActiveGestureIds(song.gestureIds || null);
     (song.notes || []).forEach(note => { delete note.resultRecorded; });
     _song      = song;
-    _sessionApproachTime = Math.max(1000, Math.min(5000, Number(song.approachTimeMs) || _approachTime));
-    _sessionWindow = Math.max(100, Math.min(500, Number(song.hitWindowMs) || _window));
+    _sessionApproachTime = _boundedNumber(song.approachTimeMs, _approachTime, 1000, 5000);
+    _sessionWindow = _boundedNumber(song.hitWindowMs, _window, 100, 500);
     _noteIndex = 0;
     _tiles     = [];
     _score     = 0;
@@ -557,12 +586,14 @@ const Game = (() => {
       },
     });
 
-    requestAnimationFrame(_draw);
+    _scheduleDraw();
     _emitScore();
   }
 
   function stop() {
     _active = false;
+    if (_rafId !== null) cancelAnimationFrame(_rafId);
+    _rafId = null;
     if (_playCtl) { _playCtl.stop(); _playCtl = null; }
     _song  = null;
     _tiles = [];
@@ -580,6 +611,8 @@ const Game = (() => {
   function pause() {
     if (!_active || _paused) return;
     _paused = true;
+    if (_rafId !== null) cancelAnimationFrame(_rafId);
+    _rafId = null;
     _playCtl?.pause();
   }
 
@@ -587,14 +620,17 @@ const Game = (() => {
     if (!_active || !_paused) return;
     _paused = false;
     _playCtl?.resume();
-    requestAnimationFrame(_draw);
+    _scheduleDraw();
   }
 
   function setApproachTime(v) {
-    _approachTime = Math.max(1000, Math.min(5000, Number(v) || DEFAULT_APPROACH_MS));
-    localStorage.setItem('game_approach_time', _approachTime);
+    _approachTime = _boundedNumber(v, DEFAULT_APPROACH_MS, 1000, 5000);
+    _saveSetting('game_approach_time', _approachTime);
   }
-  function setWindow(v) { _window = v; localStorage.setItem('game_window', v); }
+  function setWindow(v) {
+    _window = _boundedNumber(v, 240, 100, 500);
+    _saveSetting('game_window', _window);
+  }
   function getApproachTime() { return _approachTime; }
   function getWindow()  { return _window; }
   function isActive()   { return _active; }
