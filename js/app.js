@@ -32,7 +32,9 @@ const App = (() => {
     ESP32.onData((sensors, status) => {
       const values = [sensors.keyPinch, sensors.indexThumb, sensors.middleThumb, sensors.ring, sensors.little];
       values.forEach((value, index) => {
-        if (fills[index]) fills[index].style.width = `${(value / max * 100).toFixed(1)}%`;
+        const numeric = Number(value);
+        const percent = Number.isFinite(numeric) ? Math.max(0, Math.min(100, numeric / max * 100)) : 0;
+        if (fills[index]) fills[index].style.width = `${percent.toFixed(1)}%`;
       });
       dot.className = `esp-dot${status === 'connected' ? ' connected' : status === 'error' ? ' error' : ''}`;
       label.textContent = status === 'connected' ? 'Перчатка FlortteGlove подключена'
@@ -280,11 +282,11 @@ const App = (() => {
     const heldCombos = new Map();
     const isTyping = target => target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
     const makeValues = bits => ({
-      keyPinch: bits[0] ? 50 : 3600,
-      indexThumb: bits[1] ? 50 : 3600,
-      middleThumb: bits[2] ? 50 : 3600,
-      ring: bits[3] ? 50 : 3600,
-      little: bits[4] ? 50 : 3600,
+      keyPinch: bits[0] ? 3600 : 50,
+      indexThumb: bits[1] ? 3600 : 50,
+      middleThumb: bits[2] ? 3600 : 50,
+      ring: bits[3] ? 3600 : 50,
+      little: bits[4] ? 3600 : 50,
     });
     const currentBits = () => {
       const combos = Array.from(heldCombos.values());

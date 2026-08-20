@@ -97,10 +97,16 @@ const GloveSettings = (() => {
     }
     Gestures.setThreshold(SENSOR_KEYS[index], type, numeric);
     input.classList.remove('input-error');
+    if (Gestures.lastStorageError) {
+      _setCalibrationStatus('Порог применён, но не сохранён. Освободите место в хранилище приложения.', 'error');
+    }
     if (syncAfter) _syncThreshold(index);
   }
 
-  function _onSensorData(_sensors, status) {
+  function _onSensorData(_sensors, status, state) {
+    if (state?.enabled && Object.keys(state.enabled).length) {
+      Gestures.setEnabledFingers(state.enabled);
+    }
     if (_gloveStatus) {
       _gloveStatus.textContent = status === 'connected'
         ? 'FlortteGlove подключена по Bluetooth'

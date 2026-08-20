@@ -216,7 +216,8 @@ const Diagnostics = (() => {
     _appendPlayerSummary('Завершено', new Date(result.completedAt).toLocaleString('ru-RU'));
 
     _playerFingerResults?.replaceChildren();
-    (result.fingers || []).forEach((finger, index) => {
+    const fingers = Array.isArray(result.fingers) ? result.fingers : [];
+    fingers.forEach((finger, index) => {
       const card = document.createElement('article');
       const fingerStatus = finger.successPercent === null ? 'idle' : _playerResultStatus(finger.successPercent);
       card.className = `player-finger-result ${fingerStatus}`;

@@ -20,26 +20,48 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 function resolveAppFile(requestUrl) {
-  const url = new URL(requestUrl);
-  if (url.host !== APP_HOST) return null;
+  try {
+    const url = new URL(requestUrl);
+    if (url.protocol !== `${APP_SCHEME}:` || url.host !== APP_HOST) return null;
 
-  const relativePath = decodeURIComponent(url.pathname).replace(/^\/+/, '') || 'index.html';
-  const filePath = path.resolve(APP_ROOT, relativePath);
-  const insideApp = filePath === APP_ROOT || filePath.startsWith(`${APP_ROOT}${path.sep}`);
-  return insideApp ? filePath : null;
+    const relativePath = decodeURIComponent(url.pathname).replace(/^\/+/, '') || 'index.html';
+    const filePath = path.resolve(APP_ROOT, relativePath);
+    const insideApp = filePath === APP_ROOT || filePath.startsWith(`${APP_ROOT}${path.sep}`);
+    return insideApp ? filePath : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function isTrustedAppUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === `${APP_SCHEME}:` && url.host === APP_HOST;
+  } catch (_) {
+    return false;
+  }
+}
+
+function requestingUrl(webContents, details = {}, explicitOrigin = '') {
+  return explicitOrigin || details.requestingUrl || details.origin || webContents?.getURL?.() || '';
 }
 
 function allowBluetooth() {
-  session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {
-    return permission === 'bluetooth';
+  session.defaultSession.setPermissionCheckHandler((webContents, permission, origin, details) => {
+    return permission === 'bluetooth'
+      && isTrustedAppUrl(requestingUrl(webContents, details, origin));
   });
 
-  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
-    callback(permission === 'bluetooth');
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
+    callback(permission === 'bluetooth'
+      && isTrustedAppUrl(requestingUrl(webContents, details)));
   });
 
   session.defaultSession.setDevicePermissionHandler((details) => {
-    return details.deviceType === 'bluetooth';
+    const deviceName = details.device?.deviceName || details.device?.name || '';
+    return details.deviceType === 'bluetooth'
+      && isTrustedAppUrl(details.origin)
+      && (!deviceName || deviceName === DEVICE_NAME);
   });
 }
 
@@ -62,6 +84,13 @@ function createWindow() {
 
   let bluetoothCallback = null;
 
+  const guardNavigation = (event, targetUrl) => {
+    if (!isTrustedAppUrl(targetUrl)) event.preventDefault();
+  };
+  window.webContents.on('will-navigate', guardNavigation);
+  window.webContents.on('will-redirect', guardNavigation);
+  window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+
   window.webContents.on('select-bluetooth-device', (event, devices, callback) => {
     event.preventDefault();
     bluetoothCallback = callback;
@@ -69,7 +98,8 @@ function createWindow() {
     // macOS may discover a BLE device before its scan-response name arrives.
     // Web Bluetooth has already filtered this list by the Flortte service UUID,
     // so the first unnamed match is still the glove.
-    const glove = devices.find((device) => device.deviceName === DEVICE_NAME) || devices[0];
+    const glove = devices.find((device) => device.deviceName === DEVICE_NAME)
+      || devices.find((device) => !device.deviceName);
     if (!glove) return;
 
     bluetoothCallback(glove.deviceId);
