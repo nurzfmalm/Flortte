@@ -1210,7 +1210,7 @@ input[type="range"] { accent-color: var(--violet); min-height: 38px; }
   transition: transform .12s, border-color .15s, background .15s;
 }
 .exercise-gesture-card:hover { transform: translateY(-2px); border-color: var(--violet-dim); }
-.exercise-gesture-card.selected { border-color: var(--violet); background: #f0edff; }
+.exercise-gesture-card.selected { border-color: var(--violet); background: #2c2148; }
 .exercise-gesture-image {
   grid-row: 1 / 3;
   width: 82px;
@@ -1257,6 +1257,7 @@ input[type="range"] { accent-color: var(--violet); min-height: 38px; }
   border-radius: 15px;
   background: var(--surface-2);
 }
+.exercise-sequence-item.preview { grid-template-columns: 34px 58px minmax(0, 1fr); }
 .exercise-sequence-number {
   width: 30px;
   height: 30px;
@@ -1292,8 +1293,13 @@ input[type="range"] { accent-color: var(--violet); min-height: 38px; }
 }
 .exercise-music-grid {
   display: grid;
-  grid-template-columns: minmax(240px, .8fr) minmax(360px, 1.4fr);
+  grid-template-columns: 1fr;
   gap: 14px;
+}
+.exercise-audio-presets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 .exercise-music-card,
 .exercise-upload-card {
@@ -1312,7 +1318,7 @@ input[type="range"] { accent-color: var(--violet); min-height: 38px; }
   text-align: left;
 }
 .exercise-music-card.selected,
-.exercise-upload-card.selected { border-color: var(--violet); background: #f0edff; }
+.exercise-upload-card.selected { border-color: var(--violet); background: #2c2148; }
 .exercise-music-card > span:nth-child(2),
 .exercise-upload-heading > span:nth-child(2) { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .exercise-music-card small,
@@ -1337,10 +1343,12 @@ input[type="range"] { accent-color: var(--violet); min-height: 38px; }
   background: var(--violet);
   color: #fff;
   font-weight: 900;
+  opacity: 0;
 }
+.exercise-music-card.selected .exercise-music-check { opacity: 1; }
 .exercise-upload-card {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(150px, .8fr) minmax(150px, .8fr) auto;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 1fr) auto;
   gap: 12px;
   align-items: end;
   padding: 16px;
@@ -1354,6 +1362,7 @@ input[type="range"] { accent-color: var(--violet); min-height: 38px; }
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
+.exercise-training-controls { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .exercise-playback-control {
   min-width: 0;
   display: grid;
@@ -1378,6 +1387,17 @@ input[type="range"] { accent-color: var(--violet); min-height: 38px; }
   font: 800 .9rem var(--font-data);
 }
 .exercise-playback-control small { color: var(--text-2); line-height: 1.35; }
+.exercise-playback-control > input[type="range"] { width: 100%; }
+.exercise-playback-control select {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-3);
+  color: var(--text);
+  font: 700 .86rem var(--font-ui);
+}
 .exercise-all-actions { display: flex; align-items: center; gap: 9px; color: var(--text-2); font-size: .82rem; font-weight: 800; }
 .exercise-all-actions input { width: 19px; height: 19px; accent-color: var(--violet); }
 .exercise-summary {
@@ -1389,10 +1409,10 @@ input[type="range"] { accent-color: var(--violet); min-height: 38px; }
   gap: 18px;
   align-items: center;
   padding: 18px 20px;
-  border: 1px solid #cfc7ff;
+  border: 1px solid var(--violet-dim);
   border-radius: 22px;
-  background: #f4f1ffef;
-  box-shadow: 0 14px 36px #40307520;
+  background: #171525ef;
+  box-shadow: 0 14px 36px #05040b66;
   backdrop-filter: blur(12px);
 }
 .exercise-summary > div { display: flex; flex-direction: column; gap: 4px; }
@@ -1412,6 +1432,7 @@ input[type="range"] { accent-color: var(--violet); min-height: 38px; }
   .exercise-summary .btn-primary { width: 100%; }
   .exercise-music-grid { grid-template-columns: 1fr; }
   .exercise-playback-controls { grid-template-columns: 1fr; }
+  .exercise-audio-presets { grid-template-columns: 1fr; }
   .exercise-upload-card { grid-template-columns: 1fr 1fr; }
   .exercise-upload-heading { grid-column: 1 / -1; }
   .exercise-upload-error { grid-column: 1 / -1; }

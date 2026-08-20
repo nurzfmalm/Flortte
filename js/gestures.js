@@ -1,5 +1,5 @@
 /**
- * gestures.js — Flex sensor → gesture → lane/note mapping
+ * gestures.js — Flex sensor to gesture and training lane mapping
  *
  * After calibration the ESP32 normalizes every finger to the same direction:
  * 0 = fully bent, 4095 = fully straight. A finger becomes bent at the bend
@@ -10,19 +10,19 @@
  *
  * Only image-backed gestures are playable.
  *
- *  Pattern  [0,1,2,3,4]   Ref          Lane   Role in a song
+ *  Pattern  [0,1,2,3,4]   Ref          Lane
  *  ───────────────────────────────────────────────
- *  [1,1,0,0,0]        #1               0      lowest real pitches
- *  [1,0,0,0,0]        #2               1      low real pitches
- *  [0,1,0,0,0]        #3               2      middle real pitches
- *  [0,1,1,0,0]        #4               3      high real pitches
- *  [0,1,1,1,0]        Three raised      4      higher real pitches
- *  [0,1,1,1,1]        Four raised       5      still higher real pitches
- *  [1,1,1,0,0]        #8               6      higher real pitches
- *  [0,0,0,0,0]        Fist             7      higher real pitches
- *  [1,1,1,1,1]        Open hand        8      highest real pitches
+ *  [1,1,0,0,0]        #1               0
+ *  [1,0,0,0,0]        #2               1
+ *  [0,1,0,0,0]        #3               2
+ *  [0,1,1,0,0]        #4               3
+ *  [0,1,1,1,0]        Three raised      4
+ *  [0,1,1,1,1]        Four raised       5
+ *  [1,1,1,0,0]        #8               6
+ *  [0,0,0,0,0]        Fist             7
+ *  [1,1,1,1,1]        Open hand        8
  *
- * Lane (0-8) = the game column. The actual MIDI note is kept on each song note.
+ * Lane (0-8) is the game column. Note values select generated feedback tones.
  */
 
 const Gestures = (() => {
@@ -110,7 +110,7 @@ const Gestures = (() => {
   ];
 
   const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-  function midiToName(n) {
+  function pitchToName(n) {
     if (n === null) return '—';
     const oct = Math.floor(n / 12) - 1;
     return NOTE_NAMES[n % 12] + oct;
@@ -177,13 +177,13 @@ const Gestures = (() => {
       gesture:  match,
       lane:     _compactLaneForGesture(match),
       note:     match.note,
-      noteName: midiToName(match.note),
+      noteName: pitchToName(match.note),
       emoji:    match.emoji,
       bits,
     };
   }
 
-  function laneForNote(note) {
+  function laneForPitch(note) {
     if (typeof note !== 'number' || Number.isNaN(note)) return null;
     const normalized = ((note % 12) + 12) % 12;
 
@@ -323,5 +323,5 @@ const Gestures = (() => {
 
   function allGestures() { return GESTURE_MAP; }
 
-  return { classify, patternFit, laneForNote, gestureForLane, playableGestures, laneCount, setThreshold, getThreshold, getThresholdPair, getThresholds, setEnabledFingers, getEnabledFingers, setActiveGestureIds, getActiveGestureIds, allGestures, midiToName };
+  return { classify, patternFit, laneForPitch, gestureForLane, playableGestures, laneCount, setThreshold, getThreshold, getThresholdPair, getThresholds, setEnabledFingers, getEnabledFingers, setActiveGestureIds, getActiveGestureIds, allGestures, pitchToName };
 })();
