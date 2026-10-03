@@ -51,3 +51,13 @@ Flash `arduino/FlortteGloveESP32/FlortteGloveESP32.ino`. The firmware publishes 
 | Little | 25 | G |
 
 Open Settings to connect and calibrate the glove or adjust each finger's bend and release thresholds. Open Diagnostics to run the guided hardware test for every finger.
+
+Calibration requires the matching firmware from this repository; older firmware still provides sensor data, but the app asks you to update it before calibrating. In Settings, press Start, hold all connected fingers fully bent and save the bent pose. Wait for confirmation, then fully straighten the fingers and save the straight pose. Keep each pose still until the app confirms it. Each step waits for an acknowledgement after the ESP32 processes the command.
+
+Successful calibration is saved in the glove's nonvolatile storage and restored after a restart. Cancel, a Bluetooth disconnect, or a failed capture preserves the previous calibration. Fingers with less than 20 ADC units between the two poses are disabled and reported in Settings; if none respond, the app keeps the previous calibration and offers a retry. Telemetry remains live during calibration. BLE notifications use 20-byte chunks with `~` and newline framing, so larger state packets also work with the minimum MTU.
+
+To verify the firmware with Arduino CLI and the Espressif ESP32 core installed:
+
+```bash
+arduino-cli compile --fqbn esp32:esp32:esp32 arduino/FlortteGloveESP32
+```

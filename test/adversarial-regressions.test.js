@@ -93,6 +93,8 @@ function bleHarness() {
   const validPacket = JSON.stringify({
     sensors: { key: 4095, index: 4095, middle: 4095, ring: 4095, little: 4095 },
     calibrating: false,
+    calibrationSeq: 0,
+    calibrationStep: 'idle',
   });
   const tx = {
     addEventListener(name, callback) { txListeners[name] = callback; },

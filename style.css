@@ -419,7 +419,7 @@ input.input-error { border-color: var(--red); box-shadow: 0 0 0 2px #ef444422; }
 .game-finger-meter.active .game-finger-value { color: var(--text); }
 .game-finger-meter.active .game-finger-fill { box-shadow: 0 0 10px currentColor; }
 
-#game-canvas { flex: 1; width: 100%; display: block; }
+#game-canvas { flex: 1 1 0; min-height: 0; width: 100%; display: block; }
 
 .piano-row {
   display: flex; flex-shrink: 0;
@@ -1083,13 +1083,17 @@ html, body { background: var(--bg); color: var(--text); }
 #screen-game { background: #eff3ff; }
 .game-hud, .game-assist, .piano-row { background: #fff; }
 .game-next-emoji {
-  width: 150px;
-  height: 112px;
-  flex-basis: 150px;
+  width: clamp(180px, 20vw, 260px);
+  height: clamp(144px, 16vw, 208px);
+  flex-basis: clamp(180px, 20vw, 260px);
   border-radius: 18px;
   background: #f3f0ff;
 }
 .game-next-name { font-size: 1.18rem; }
+.game-next { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "main" "recipe"; }
+.game-next-main { flex-wrap: wrap; }
+.game-next-copy { flex: 1 1 140px; }
+.game-next-name, .game-next-meta { white-space: normal; overflow-wrap: anywhere; }
 .game-assist-title { font-size: .7rem; color: var(--violet); font-weight: 800; }
 .lane-key { min-height: 132px; padding: 10px 6px; }
 .lane-gesture-icon { width: min(88px, 10vw); height: 80px; font-size: 2rem; }
@@ -1102,9 +1106,19 @@ input[type="range"] { accent-color: var(--violet); min-height: 38px; }
 @media (max-width: 820px) {
   .upload-card { grid-template-columns: 1fr; }
   .upload-error { grid-column: 1; }
-  .game-next-emoji { width: 116px; height: 88px; flex-basis: 116px; }
+  .game-next-emoji { width: 160px; height: 128px; flex-basis: 160px; }
   .lane-key { min-height: 108px; }
   .lane-gesture-icon { height: 70px; }
+}
+@media (max-width: 480px) {
+  .game-next-emoji { width: 180px; height: 144px; flex-basis: 180px; }
+  .game-next-copy { flex: 1 1 120px; }
+  .lane-label { display: none; }
+}
+@media (max-width: 360px) {
+  .game-next-main { gap: 8px; }
+  .game-next-emoji { width: 160px; height: 128px; flex-basis: 160px; }
+  .game-next-copy { flex: 1 1 80px; }
 }
 
 .calibration-actions { display: flex; gap: 10px; flex-wrap: wrap; }
