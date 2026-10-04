@@ -3,6 +3,7 @@
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
+#include <Preferences.h>
 
 // BLE UART-compatible service. Read/subscribe to TX for sensor data and write
 // commands to RX. Commands: calibrate:start, calibrate:bent,
@@ -26,16 +27,22 @@ const unsigned long BLE_PUBLISH_INTERVAL_MS = 100;
 const unsigned long SERIAL_PRINT_INTERVAL_MS = 250;
 
 BLECharacteristic* txCharacteristic = nullptr;
-bool deviceConnected = false;
+volatile bool deviceConnected = false;
 bool wasConnected = false;
 bool isCalibrating = false;
-bool captureBentRequested = false;
-bool captureOpenRequested = false;
+bool hasBentPose = false;
+bool calibrationSaved = false;
+enum class CalibrationCommand { NONE, START, BENT, OPEN, CANCEL };
+volatile CalibrationCommand pendingCommand = CalibrationCommand::NONE;
+portMUX_TYPE commandMux = portMUX_INITIALIZER_UNLOCKED;
+const char* calibrationStep = "idle";
+unsigned long calibrationSeq = 0;
 unsigned long calibratedAt = 0;
 unsigned long lastBlePublish = 0;
 unsigned long lastSerialPrint = 0;
 
 int bentValues[FINGER_COUNT] = {};
+int pendingBentValues[FINGER_COUNT] = {};
 int straightValues[FINGER_COUNT] = {};
 int rawValues[FINGER_COUNT] = {};
 int calibratedValues[FINGER_COUNT] = {};
@@ -54,24 +61,57 @@ int readAverage(int pin) {
 
 void beginCalibration() {
   isCalibrating = true;
+  hasBentPose = false;
+  calibrationStep = "prepare";
   Serial.println("BLE CALIBRATION START");
 }
 
 void captureBentPose() {
-  if (!isCalibrating) beginCalibration();
-  for (int i = 0; i < FINGER_COUNT; i++) bentValues[i] = readAverage(FLEX_PINS[i]);
+  if (!isCalibrating) { calibrationStep = "error"; return; }
+  for (int i = 0; i < FINGER_COUNT; i++) pendingBentValues[i] = readAverage(FLEX_PINS[i]);
+  hasBentPose = true;
+  calibrationStep = "bent";
   Serial.println("Bent pose saved.");
 }
 
 void captureStraightPose() {
-  if (!isCalibrating) beginCalibration();
+  if (!isCalibrating || !hasBentPose) { calibrationStep = "error"; return; }
+  int candidateStraight[FINGER_COUNT];
+  bool anyEnabled = false;
   for (int i = 0; i < FINGER_COUNT; i++) {
-    straightValues[i] = readAverage(FLEX_PINS[i]);
+    candidateStraight[i] = readAverage(FLEX_PINS[i]);
+    anyEnabled |= abs(candidateStraight[i] - pendingBentValues[i]) >= MIN_CALIBRATION_RANGE;
+  }
+  // A failed attempt or cancellation must leave the working calibration intact.
+  if (!anyEnabled) { calibrationStep = "error"; return; }
+  portENTER_CRITICAL(&commandMux);
+  if (pendingCommand == CalibrationCommand::CANCEL || !deviceConnected) {
+    portEXIT_CRITICAL(&commandMux);
+    return;
+  }
+  for (int i = 0; i < FINGER_COUNT; i++) {
+    bentValues[i] = pendingBentValues[i];
+    straightValues[i] = candidateStraight[i];
     fingerEnabled[i] = abs(straightValues[i] - bentValues[i]) >= MIN_CALIBRATION_RANGE;
     filteredValues[i] = straightValues[i];
   }
   calibratedAt = millis();
   isCalibrating = false;
+  hasBentPose = false;
+  calibrationStep = "done";
+  portEXIT_CRITICAL(&commandMux);
+  Preferences preferences;
+  calibrationSaved = false;
+  if (preferences.begin("flortte", false)) {
+    // Save both poses together so an interrupted write cannot mix two attempts.
+    int poses[FINGER_COUNT * 2];
+    for (int i = 0; i < FINGER_COUNT; i++) {
+      poses[i] = bentValues[i];
+      poses[FINGER_COUNT + i] = straightValues[i];
+    }
+    calibrationSaved = preferences.putBytes("poses", poses, sizeof(poses)) == sizeof(poses);
+    preferences.end();
+  }
   Serial.println("Straight pose saved. Calibration complete.");
 }
 
@@ -108,6 +148,28 @@ void initializeSensors() {
     fingerEnabled[i] = true;
     calibratedValues[i] = rawValues[i];
   }
+  Preferences preferences;
+  if (preferences.begin("flortte", true)) {
+    int poses[FINGER_COUNT * 2];
+    bool valid = preferences.getBytesLength("poses") == sizeof(poses) &&
+      preferences.getBytes("poses", poses, sizeof(poses)) == sizeof(poses);
+    bool anyEnabled = false;
+    if (valid) {
+      for (int i = 0; i < FINGER_COUNT * 2; i++) valid &= poses[i] >= 0 && poses[i] <= 4095;
+      for (int i = 0; i < FINGER_COUNT; i++) anyEnabled |= abs(poses[FINGER_COUNT + i] - poses[i]) >= MIN_CALIBRATION_RANGE;
+    }
+    if (valid && anyEnabled) {
+      calibrationSaved = true;
+      for (int i = 0; i < FINGER_COUNT; i++) {
+        bentValues[i] = poses[i];
+        straightValues[i] = poses[FINGER_COUNT + i];
+        fingerEnabled[i] = abs(straightValues[i] - bentValues[i]) >= MIN_CALIBRATION_RANGE;
+        calibratedValues[i] = toCalibratedAdc(i, rawValues[i]);
+        bendPercents[i] = toBendPercent(i, rawValues[i]);
+      }
+    }
+    preferences.end();
+  }
 }
 
 String buildSensorJson() {
@@ -123,14 +185,35 @@ String buildSensorJson() {
   }
   json += "},\"calibrating\":";
   json += isCalibrating ? "true" : "false";
+  json += ",\"calibrationSeq\":"; json += calibrationSeq;
+  json += ",\"calibrationStep\":\""; json += calibrationStep; json += '\"';
+  json += ",\"calibratedAt\":"; json += calibratedAt;
+  json += ",\"calibrationSaved\":"; json += calibrationSaved ? "true" : "false";
+  json += ",\"enabled\":{";
+  for (int i = 0; i < FINGER_COUNT; i++) {
+    if (i) json += ',';
+    json += '\"'; json += FINGER_KEYS[i]; json += "\":";
+    json += fingerEnabled[i] ? "true" : "false";
+  }
+  json += '}';
   json += '}';
   return json;
 }
 
 void publishState() {
   String json = buildSensorJson();
+  if (deviceConnected) {
+    // 20 bytes work even with the minimum BLE MTU (23), including Windows.
+    String frame = "~" + json + "\n";
+    for (unsigned int offset = 0; offset < frame.length() && deviceConnected; offset += 20) {
+      String chunk = frame.substring(offset, offset + 20);
+      txCharacteristic->setValue(chunk.c_str());
+      txCharacteristic->notify();
+      delay(5);
+    }
+  }
+  // A GATT read returns the complete, unframed state.
   txCharacteristic->setValue(json.c_str());
-  if (deviceConnected) txCharacteristic->notify();
 }
 
 void printSensorLine() {
@@ -152,6 +235,9 @@ class ServerCallbacks : public BLEServerCallbacks {
 
   void onDisconnect(BLEServer*) override {
     deviceConnected = false;
+    portENTER_CRITICAL(&commandMux);
+    pendingCommand = CalibrationCommand::CANCEL;
+    portEXIT_CRITICAL(&commandMux);
     Serial.println("Bluetooth client disconnected.");
   }
 };
@@ -162,12 +248,16 @@ class CommandCallbacks : public BLECharacteristicCallbacks {
     command.trim();
     command.toLowerCase();
 
-    // Sensor reads are deliberately performed in loop(), not inside the BLE callback.
-    if (command == "calibrate:start") beginCalibration();
-    else if (command == "calibrate:bent") captureBentRequested = true;
-    else if (command == "calibrate:open") captureOpenRequested = true;
-    else if (command == "calibrate:cancel") isCalibrating = false;
-    else Serial.println("Unknown BLE command: " + command);
+    CalibrationCommand requested = CalibrationCommand::NONE;
+    if (command == "calibrate:start") requested = CalibrationCommand::START;
+    else if (command == "calibrate:bent") requested = CalibrationCommand::BENT;
+    else if (command == "calibrate:open") requested = CalibrationCommand::OPEN;
+    else if (command == "calibrate:cancel") requested = CalibrationCommand::CANCEL;
+    else { Serial.println("Unknown BLE command: " + command); return; }
+    // All state changes and sensor reads happen in loop(), after the BLE write.
+    portENTER_CRITICAL(&commandMux);
+    if (pendingCommand == CalibrationCommand::NONE || requested == CalibrationCommand::CANCEL) pendingCommand = requested;
+    portEXIT_CRITICAL(&commandMux);
   }
 };
 
@@ -213,16 +303,24 @@ void setup() {
 }
 
 void loop() {
-  if (captureBentRequested) {
-    captureBentRequested = false;
-    captureBentPose();
-  }
-  if (captureOpenRequested) {
-    captureOpenRequested = false;
-    captureStraightPose();
+  portENTER_CRITICAL(&commandMux);
+  CalibrationCommand command = pendingCommand;
+  pendingCommand = CalibrationCommand::NONE;
+  portEXIT_CRITICAL(&commandMux);
+  if (command != CalibrationCommand::NONE) {
+    if (command == CalibrationCommand::START) beginCalibration();
+    else if (command == CalibrationCommand::BENT) captureBentPose();
+    else if (command == CalibrationCommand::OPEN) captureStraightPose();
+    else if (command == CalibrationCommand::CANCEL) {
+      isCalibrating = false;
+      hasBentPose = false;
+      calibrationStep = "idle";
+    }
+    calibrationSeq++;
   }
 
-  if (!isCalibrating) updateSensors();
+  // Keep telemetry live while holding the previous calibration until commit.
+  updateSensors();
 
   if (millis() - lastBlePublish >= BLE_PUBLISH_INTERVAL_MS) {
     lastBlePublish = millis();

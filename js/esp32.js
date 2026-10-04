@@ -12,7 +12,10 @@ const ESP32 = (() => {
   let _status = 'disconnected';
   let _lastError = '';
   let _stateVersion = 0;
-  let _lastState = { raw: {}, bendPercent: {}, calibration: {}, enabled: {}, calibrating: false, calibratedAt: 0, valid: false };
+  let _notificationFrame = null;
+  let _calibrationPending = false;
+  const _emptyState = () => ({ raw: {}, bendPercent: {}, calibration: {}, enabled: {}, calibrating: false, calibratedAt: 0, calibrationSeq: null, calibrationStep: 'idle', calibrationSaved: null, valid: false });
+  let _lastState = _emptyState();
   const sensors = {
     keyPinch: 4095,
     indexThumb: 4095,
@@ -97,6 +100,9 @@ const ESP32 = (() => {
       enabled: { ...(_lastState.enabled || {}), ..._fingerMetadata(data.enabled) },
       calibrating: data.calibrating ?? _lastState.calibrating,
       calibratedAt: data.calibratedAt ?? _lastState.calibratedAt,
+      calibrationSeq: Number.isInteger(data.calibrationSeq) ? data.calibrationSeq : _lastState.calibrationSeq,
+      calibrationStep: data.calibrationStep ?? _lastState.calibrationStep,
+      calibrationSaved: data.calibrationSaved ?? _lastState.calibrationSaved,
       valid: true,
     };
     if (markConnected) {
@@ -111,8 +117,22 @@ const ESP32 = (() => {
     try {
       const view = event.target.value;
       const text = new TextDecoder().decode(new Uint8Array(view.buffer, view.byteOffset, view.byteLength));
-      _applyState(JSON.parse(text));
+      // New firmware frames JSON with '~' and a newline, in MTU-safe chunks.
+      // Unframed, complete JSON from earlier firmware is still readable.
+      if (text.startsWith('~')) _notificationFrame = text.slice(1);
+      else if (_notificationFrame !== null) _notificationFrame += text;
+      else {
+        _applyState(JSON.parse(text));
+        return;
+      }
+      if (_notificationFrame.length > 4096) throw new Error('BLE-пакет слишком длинный');
+      if (_notificationFrame.endsWith('\n')) {
+        const frame = _notificationFrame;
+        _notificationFrame = null;
+        _applyState(JSON.parse(frame));
+      }
     } catch (err) {
+      _notificationFrame = null;
       _markDataError(err);
     }
   }
@@ -121,7 +141,8 @@ const ESP32 = (() => {
     _rx = null;
     _tx = null;
     Object.keys(sensors).forEach(key => { sensors[key] = NaN; });
-    _lastState = { ..._lastState, valid: false };
+    _notificationFrame = null;
+    _lastState = _emptyState();
     _setStatus('disconnected');
   }
 
@@ -131,9 +152,12 @@ const ESP32 = (() => {
       _setStatus('error');
       throw new Error(_lastError);
     }
-    if (_device?.gatt?.connected && _rx && _tx) return;
+    if (_device?.gatt?.connected && _rx && _tx && _status === 'connected') return;
+    if (_device?.gatt?.connected) _device.gatt.disconnect();
 
     _lastError = '';
+    _notificationFrame = null;
+    _lastState = _emptyState();
     _setStatus('connecting');
     try {
       _device = await navigator.bluetooth.requestDevice({
@@ -146,14 +170,16 @@ const ESP32 = (() => {
       _rx = await service.getCharacteristic(RX_UUID);
       _tx = await service.getCharacteristic(TX_UUID);
       _tx.addEventListener('characteristicvaluechanged', _onValue);
+      const version = _stateVersion;
       await _tx.startNotifications();
       try {
         _applyState(JSON.parse(new TextDecoder().decode(await _tx.readValue())));
-      } catch (error) {
-        _markDataError(error);
-        throw error;
+      } catch (_) {
+        // A read can overlap a framed notification. Wait for a complete packet.
+        await _waitForFreshState(version, state => state.valid);
       }
     } catch (err) {
+      if (_device?.gatt?.connected) _device.gatt.disconnect();
       _lastError = err?.name === 'NotFoundError' ? 'Выбор Bluetooth-устройства отменён' : (err.message || String(err));
       _setStatus('error');
       throw err;
@@ -168,7 +194,8 @@ const ESP32 = (() => {
   async function _writeCommand(command) {
     if (!_rx || !_device?.gatt?.connected) throw new Error('Сначала подключите перчатку по Bluetooth');
     const bytes = new TextEncoder().encode(command);
-    if (_rx.writeValueWithoutResponse) await _rx.writeValueWithoutResponse(bytes);
+    if (_rx.writeValueWithResponse) await _rx.writeValueWithResponse(bytes);
+    else if (_rx.writeValueWithoutResponse) await _rx.writeValueWithoutResponse(bytes);
     else await _rx.writeValue(bytes);
   }
 
@@ -202,11 +229,27 @@ const ESP32 = (() => {
     if (!['start', 'bent', 'open', 'cancel'].includes(action)) {
       throw new Error('Неизвестная команда калибровки');
     }
+    if (_calibrationPending) throw new Error('Дождитесь завершения текущего шага калибровки');
+    if (!_rx || !_device?.gatt?.connected) throw new Error('Сначала подключите перчатку по Bluetooth');
+    if (!_lastState.valid || !Number.isInteger(_lastState.calibrationSeq)) {
+      throw new Error('Обновите прошивку FlortteGlove: она должна подтверждать шаги калибровки');
+    }
     const version = _stateVersion;
-    await _writeCommand(`calibrate:${action}`);
-    if (_status !== 'connected') throw new Error('Соединение с перчаткой потеряно');
-    const expectedCalibrating = !['open', 'cancel'].includes(action);
-    return _waitForFreshState(version, state => state.calibrating === expectedCalibrating);
+    const sequence = _lastState.calibrationSeq;
+    const expectedStep = { start: 'prepare', bent: 'bent', open: 'done', cancel: 'idle' }[action];
+    _calibrationPending = true;
+    try {
+      await _writeCommand(`calibrate:${action}`);
+      if (_status !== 'connected') throw new Error('Соединение с перчаткой потеряно');
+      const state = await _waitForFreshState(version, state =>
+        state.calibrationSeq !== sequence && (state.calibrationStep === expectedStep || state.calibrationStep === 'error'));
+      if (state.calibrationStep === 'error') {
+        throw new Error('Поза не сохранена. Сначала сохраните сгиб, затем полностью выпрямите пальцы; проверьте датчики');
+      }
+      return state;
+    } finally {
+      _calibrationPending = false;
+    }
   }
 
   function start() { _emit(); }
