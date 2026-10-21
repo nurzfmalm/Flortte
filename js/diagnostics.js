@@ -1,12 +1,16 @@
 /** Live graph and guided five-finger hardware diagnostic. */
 const Diagnostics = (() => {
+  // Keep calculation modules usable independently of the browser interface.
+  const _t = typeof I18n !== 'undefined' ? I18n.t : (message, ...values) =>
+    typeof message === 'string' ? message : message.reduce((text, part, index) =>
+      text + part + (index < values.length ? values[index] : ''), '');
   const HISTORY_LEN = 200;
   const OPEN_CAPTURE_MS = 2500;
   const PREPARE_MS = 2000;
   const FINGER_CAPTURE_MS = 5000;
   const COLORS = ['#7c3aed', '#22d3a0', '#f59e0b', '#38bdf8', '#f472b6'];
   const SENSOR_KEYS = ['keyPinch', 'indexThumb', 'middleThumb', 'ring', 'little'];
-  const SENSOR_LABELS = ['Большой', 'Указательный', 'Средний', 'Безымянный', 'Мизинец'];
+  const SENSOR_LABELS = [_t('Большой'), _t('Указательный'), _t('Средний'), _t('Безымянный'), _t('Мизинец')];
   const MAX_ADC = 4095;
 
   const _history = SENSOR_KEYS.map(() => new Float32Array(HISTORY_LEN));
@@ -95,7 +99,7 @@ const Diagnostics = (() => {
 
   function _renderProgress() {
     if (!_progress) return;
-    const labels = ['Открытая ладонь', ...SENSOR_LABELS];
+    const labels = [_t('Открытая ладонь'), ...SENSOR_LABELS];
     _progress.replaceChildren();
     labels.forEach((label, index) => {
       const item = document.createElement('div');
@@ -145,8 +149,8 @@ const Diagnostics = (() => {
 
   function _formatMilliseconds(value) {
     return value !== null && value !== undefined && Number.isFinite(Number(value))
-      ? `${Number(value).toFixed(1)} мс`
-      : 'Нет данных';
+      ? _t`${Number(value).toFixed(1)} мс`
+      : _t('Нет данных');
   }
 
   function _timingProgress(result, history) {
@@ -179,7 +183,7 @@ const Diagnostics = (() => {
     if (!result) {
       if (_playerResultOverall) {
         _playerResultOverall.className = 'diagnostic-overall idle';
-        _playerResultOverall.textContent = 'Нет результата';
+        _playerResultOverall.textContent = _t('Нет результата');
       }
       if (_playerResultEmpty) _playerResultEmpty.hidden = false;
       if (_playerResultContent) _playerResultContent.hidden = true;
@@ -189,31 +193,31 @@ const Diagnostics = (() => {
     const status = _playerResultStatus(result.successPercent);
     if (_playerResultOverall) {
       _playerResultOverall.className = `diagnostic-overall ${status}`;
-      _playerResultOverall.textContent = `${result.successPercent}% успеха`;
+      _playerResultOverall.textContent = _t`${result.successPercent}% успеха`;
     }
     if (_playerResultEmpty) _playerResultEmpty.hidden = true;
     if (_playerResultContent) _playerResultContent.hidden = false;
 
     _playerResultSummary?.replaceChildren();
-    _appendPlayerSummary('Игра', result.songName);
-    _appendPlayerSummary('Счёт', Number(result.score || 0).toLocaleString('ru-RU'));
-    _appendPlayerSummary('Попадания', `${result.hits} из ${result.totalNotes}`);
-    _appendPlayerSummary('Промахи', String(result.misses));
-    _appendPlayerSummary('Лучшая серия', String(result.maxCombo));
-    _appendPlayerSummary('Средняя ошибка (MTE)', _formatMilliseconds(result.timing?.meanErrorMs));
-    _appendPlayerSummary('Вариативность (SD)', _formatMilliseconds(result.timing?.variabilityMs));
+    _appendPlayerSummary(_t('Игра'), result.songName);
+    _appendPlayerSummary(_t('Счёт'), Number(result.score || 0).toLocaleString(_t('ru-RU')));
+    _appendPlayerSummary(_t('Попадания'), _t`${result.hits} из ${result.totalNotes}`);
+    _appendPlayerSummary(_t('Промахи'), String(result.misses));
+    _appendPlayerSummary(_t('Лучшая серия'), String(result.maxCombo));
+    _appendPlayerSummary(_t('Средняя ошибка (MTE)'), _formatMilliseconds(result.timing?.meanErrorMs));
+    _appendPlayerSummary(_t('Вариативность (SD)'), _formatMilliseconds(result.timing?.variabilityMs));
 
     const progress = _timingProgress(result, history);
     if (progress) {
-      const direction = progress.delta < 0 ? 'лучше' : progress.delta > 0 ? 'хуже' : 'без изменений';
+      const direction = progress.delta < 0 ? _t('лучше') : progress.delta > 0 ? _t('хуже') : _t('без изменений');
       const change = Math.abs(progress.delta).toFixed(1);
-      const date = new Date(progress.completedAt).toLocaleDateString('ru-RU');
+      const date = new Date(progress.completedAt).toLocaleDateString(_t('ru-RU'));
       _appendPlayerSummary(
-        'Прогресс MTE',
-        `${progress.baselineMean.toFixed(1)} → ${progress.currentMean.toFixed(1)} мс, ${change} мс ${direction} с ${date}`
+        _t('Прогресс MTE'),
+        _t`${progress.baselineMean.toFixed(1)} → ${progress.currentMean.toFixed(1)} мс, ${change} мс ${direction} с ${date}`
       );
     }
-    _appendPlayerSummary('Завершено', new Date(result.completedAt).toLocaleString('ru-RU'));
+    _appendPlayerSummary(_t('Завершено'), new Date(result.completedAt).toLocaleString(_t('ru-RU')));
 
     _playerFingerResults?.replaceChildren();
     const fingers = Array.isArray(result.fingers) ? result.fingers : [];
@@ -225,9 +229,9 @@ const Diagnostics = (() => {
       const heading = document.createElement('div');
       heading.className = 'player-finger-heading';
       const name = document.createElement('strong');
-      name.textContent = finger.name || SENSOR_LABELS[index];
+      name.textContent = SENSOR_LABELS[index] || finger.name;
       const percent = document.createElement('span');
-      percent.textContent = finger.successPercent === null ? 'Нет нот' : `${finger.successPercent}%`;
+      percent.textContent = finger.successPercent === null ? _t('Нет нот') : `${finger.successPercent}%`;
       heading.append(name, percent);
 
       const progress = document.createElement('div');
@@ -238,12 +242,12 @@ const Diagnostics = (() => {
 
       const details = document.createElement('span');
       details.className = 'player-finger-details';
-      details.textContent = `${finger.hits} из ${finger.attempts} успешных нот`;
+      details.textContent = _t`${finger.hits} из ${finger.attempts} успешных нот`;
       const timing = document.createElement('span');
       timing.className = 'player-finger-details player-finger-timing';
       timing.textContent = finger.timing?.samples
         ? `MTE ${_formatMilliseconds(finger.timing.meanErrorMs)}, SD ${_formatMilliseconds(finger.timing.variabilityMs)}`
-        : 'Нет данных о тайминге';
+        : _t('Нет данных о тайминге');
       card.append(heading, progress, details, timing);
       _playerFingerResults?.appendChild(card);
     });
@@ -259,31 +263,31 @@ const Diagnostics = (() => {
     title.textContent = SENSOR_LABELS[fingerIndex];
     const badge = document.createElement('span');
     badge.className = `finger-status ${result.status}`;
-    badge.textContent = result.status === 'pass' ? 'Исправен' : result.status === 'warn' ? 'Есть замечания' : 'Ошибка';
+    badge.textContent = result.status === 'pass' ? _t('Исправен') : result.status === 'warn' ? _t('Есть замечания') : _t('Ошибка');
     header.append(title, badge);
 
     const summary = document.createElement('p');
     summary.className = 'finger-summary';
     summary.textContent = result.status === 'pass'
-      ? 'Сенсор уверенно распознаёт сгибание и возврат.'
+      ? _t('Сенсор уверенно распознаёт сгибание и возврат.')
       : result.status === 'warn'
-        ? 'Играть можно, но точность или независимость пальца ниже нормы.'
-        : 'Сенсор не прошёл одну или несколько обязательных проверок.';
+        ? _t('Играть можно, но точность или независимость пальца ниже нормы.')
+        : _t('Сенсор не прошёл одну или несколько обязательных проверок.');
 
     const metrics = document.createElement('div');
     metrics.className = 'finger-metrics';
-    _appendMetric(metrics, 'Отсчёты', String(result.metrics.samples));
-    _appendMetric(metrics, 'Открытая рука', `${_formatNumber(result.metrics.openMean)} ± ${_formatNumber(result.metrics.openNoise, 1)} ADC`);
-    _appendMetric(metrics, 'Мин. / макс.', `${_formatNumber(result.metrics.min)} / ${_formatNumber(result.metrics.max)}`);
-    _appendMetric(metrics, 'Диапазон', `${_formatNumber(result.metrics.span)} ADC`);
-    _appendMetric(metrics, 'Пороги сгиб / разгиб', `${result.metrics.bendThreshold} / ${result.metrics.releaseThreshold}`);
-    _appendMetric(metrics, 'Сгибания', String(result.metrics.bends));
-    _appendMetric(metrics, 'Крайние значения', `${_formatNumber(result.metrics.railRatio * 100, 1)}%`);
+    _appendMetric(metrics, _t('Отсчёты'), String(result.metrics.samples));
+    _appendMetric(metrics, _t('Открытая рука'), `${_formatNumber(result.metrics.openMean)} ± ${_formatNumber(result.metrics.openNoise, 1)} ADC`);
+    _appendMetric(metrics, _t('Мин. / макс.'), `${_formatNumber(result.metrics.min)} / ${_formatNumber(result.metrics.max)}`);
+    _appendMetric(metrics, _t('Диапазон'), `${_formatNumber(result.metrics.span)} ADC`);
+    _appendMetric(metrics, _t('Пороги сгиб / разгиб'), `${result.metrics.bendThreshold} / ${result.metrics.releaseThreshold}`);
+    _appendMetric(metrics, _t('Сгибания'), String(result.metrics.bends));
+    _appendMetric(metrics, _t('Крайние значения'), `${_formatNumber(result.metrics.railRatio * 100, 1)}%`);
     const neighbor = result.metrics.largestOtherIndex >= 0
       ? SENSOR_LABELS[result.metrics.largestOtherIndex].toLowerCase()
-      : 'нет';
-    _appendMetric(metrics, 'Самый активный сосед', `${neighbor}: ${_formatNumber(result.metrics.largestOtherSpan)} ADC`);
-    _appendMetric(metrics, 'Независимость', `${_formatNumber(result.metrics.independence, 2)}×`);
+      : _t('нет');
+    _appendMetric(metrics, _t('Самый активный сосед'), `${neighbor}: ${_formatNumber(result.metrics.largestOtherSpan)} ADC`);
+    _appendMetric(metrics, _t('Независимость'), `${_formatNumber(result.metrics.independence, 2)}×`);
 
     const checks = document.createElement('div');
     checks.className = 'check-list';
@@ -304,7 +308,7 @@ const Diagnostics = (() => {
     const recommendations = document.createElement('div');
     recommendations.className = 'recommendations';
     const recommendationTitle = document.createElement('strong');
-    recommendationTitle.textContent = result.status === 'pass' ? 'Итог' : 'Что сделать';
+    recommendationTitle.textContent = result.status === 'pass' ? _t('Итог') : _t('Что сделать');
     const list = document.createElement('ul');
     result.recommendations.forEach((text) => {
       const item = document.createElement('li');
@@ -333,7 +337,7 @@ const Diagnostics = (() => {
 
   function _onSensorData(sensors, status) {
     if (status !== 'connected' && ['open', 'prepare', 'capture'].includes(_phase.kind)) {
-      _stopTest('Соединение с перчаткой потеряно. Подключите Bluetooth и запустите проверку заново.', true);
+      _stopTest(_t('Соединение с перчаткой потеряно. Подключите Bluetooth и запустите проверку заново.'), true);
     }
     if (status === 'connected') _storeSample(sensors);
     if (!_active) return;
@@ -352,7 +356,7 @@ const Diagnostics = (() => {
     SENSOR_KEYS.forEach((_, index) => {
       const active = Boolean(result.bits[index]);
       if (!_dcg[index]) return;
-      _dcg[index].textContent = active ? '● АКТИВЕН' : '';
+      _dcg[index].textContent = active ? _t('● АКТИВЕН') : '';
       _dcg[index].style.color = active ? COLORS[index] : '';
     });
     if (_statusDot) _statusDot.classList.toggle('on', status === 'connected');
@@ -434,26 +438,26 @@ const Diagnostics = (() => {
     _renderProgress();
     const status = DiagnosticMetrics.overall(_results);
     const messages = {
-      pass: 'Все 5 пальцев исправны',
-      warn: 'Работает, есть замечания',
-      fail: 'Обнаружена ошибка',
+      pass: _t('Все 5 пальцев исправны'),
+      warn: _t('Работает, есть замечания'),
+      fail: _t('Обнаружена ошибка'),
     };
     _setOverall(status, messages[status]);
     if (_instruction) {
       _instruction.className = `diagnostic-instruction ${status}`;
       _instruction.textContent = status === 'pass'
-        ? 'Проверка завершена. Перчатка готова к игре.'
-        : 'Проверка завершена. Откройте результат каждого пальца ниже и выполните рекомендации.';
+        ? _t('Проверка завершена. Перчатка готова к игре.')
+        : _t('Проверка завершена. Откройте результат каждого пальца ниже и выполните рекомендации.');
       delete _instruction.dataset.seconds;
     }
   }
 
-  function _stopTest(message = 'Проверка остановлена.', failed = false) {
+  function _stopTest(message = _t('Проверка остановлена.'), failed = false) {
     if (!['open', 'prepare', 'capture'].includes(_phase.kind)) return;
     _runId++;
     _phase = { kind: 'stopped', fingerIndex: -1 };
     _setRunning(false);
-    _setOverall(failed ? 'fail' : 'idle', failed ? 'Проверка прервана' : 'Проверка остановлена');
+    _setOverall(failed ? 'fail' : 'idle', failed ? _t('Проверка прервана') : _t('Проверка остановлена'));
     if (_instruction) {
       _instruction.className = `diagnostic-instruction ${failed ? 'fail' : ''}`.trim();
       _instruction.textContent = message;
@@ -464,10 +468,10 @@ const Diagnostics = (() => {
 
   async function _startTest() {
     if (ESP32.status !== 'connected') {
-      _setOverall('fail', 'Нет подключения');
+      _setOverall('fail', _t('Нет подключения'));
       if (_instruction) {
         _instruction.className = 'diagnostic-instruction fail';
-        _instruction.textContent = 'Сначала подключите FlortteGlove по Bluetooth. Без реальных данных тест не запускается.';
+        _instruction.textContent = _t('Сначала подключите FlortteGlove по Bluetooth. Без реальных данных тест не запускается.');
       }
       return;
     }
@@ -478,25 +482,25 @@ const Diagnostics = (() => {
     _results = Array(SENSOR_KEYS.length).fill(null);
     _resultsContainer?.replaceChildren();
     _setRunning(true);
-    _setOverall('running', 'Проверка идёт');
+    _setOverall('running', _t('Проверка идёт'));
 
     let continued = await _runTimedPhase(
       'open', -1, OPEN_CAPTURE_MS,
-      'Полностью выпрямите все пальцы и держите ладонь неподвижно.', runId
+      _t('Полностью выпрямите все пальцы и держите ладонь неподвижно.'), runId
     );
     if (!continued) return;
 
     for (let fingerIndex = 0; fingerIndex < SENSOR_KEYS.length; fingerIndex++) {
       continued = await _runTimedPhase(
         'prepare', fingerIndex, PREPARE_MS,
-        `Приготовьтесь проверить ${SENSOR_LABELS[fingerIndex].toLowerCase()} палец. Остальные пальцы держите прямо.`, runId
+        _t`Приготовьтесь проверить ${SENSOR_LABELS[fingerIndex].toLowerCase()} палец. Остальные пальцы держите прямо.`, runId
       );
       if (!continued) return;
 
       _captureSamples = SENSOR_KEYS.map(() => []);
       continued = await _runTimedPhase(
         'capture', fingerIndex, FINGER_CAPTURE_MS,
-        `Согните и полностью разогните ${SENSOR_LABELS[fingerIndex].toLowerCase()} палец минимум 3 раза. Остальные не двигайте.`, runId
+        _t`Согните и полностью разогните ${SENSOR_LABELS[fingerIndex].toLowerCase()} палец минимум 3 раза. Остальные не двигайте.`, runId
       );
       if (!continued) return;
 
@@ -519,7 +523,7 @@ const Diagnostics = (() => {
       _reconnectButton.disabled = true;
       try {
         await ESP32.connect();
-        _instruction.textContent = 'Перчатка подключена. Нажмите «Начать проверку».';
+        _instruction.textContent = _t('Перчатка подключена. Нажмите «Начать проверку».');
         _instruction.className = 'diagnostic-instruction pass';
       } catch (error) {
         _instruction.textContent = `Bluetooth: ${ESP32.lastError || error.message}`;
@@ -550,7 +554,7 @@ const Diagnostics = (() => {
     _active = false;
     cancelAnimationFrame(_raf);
     _raf = null;
-    _stopTest('Проверка остановлена при выходе из диагностики.');
+    _stopTest(_t('Проверка остановлена при выходе из диагностики.'));
   }
 
   return { init, enter, leave };

@@ -26,6 +26,10 @@
  */
 
 const Gestures = (() => {
+  // Keep calculation modules usable independently of the browser interface.
+  const _t = typeof I18n !== 'undefined' ? I18n.t : (message, ...values) =>
+    typeof message === 'string' ? message : message.reduce((text, part, index) =>
+      text + part + (index < values.length ? values[index] : ''), '');
   const SENSOR_KEYS = ['keyPinch', 'indexThumb', 'middleThumb', 'ring', 'little'];
   const MIN_THRESHOLD = 0;
   const MAX_THRESHOLD = 4095;
@@ -91,7 +95,7 @@ const Gestures = (() => {
   const UNSUPPORTED_GESTURE = {
     id: 'unsupported',
     pattern: null,
-    name: 'Нет комбинации',
+    name: _t('Нет комбинации'),
     lane: null,
     note: null,
     emoji: '—',
@@ -100,15 +104,15 @@ const Gestures = (() => {
   const GESTURE_MAP = [
     // 1 = straight/raised, 0 = bent
     // [thumb, index, middle, ring, little]  name       lane  diagnostic note  keyboard
-    { id: 'gesture-1', pattern: [1,1,0,0,0], name: '1. Указательный + большой',             lane: 0,    note: 60,   emoji: '1', keys: 'A+S / 1', image: 'assets/gestures/gesture-1-thumb-index.png', color: '#7c3aed', glow: '#a855f7' },
-    { id: 'gesture-2', pattern: [1,0,0,0,0], name: '2. Только большой',                     lane: 1,    note: 62,   emoji: '2', keys: 'A / 2', image: 'assets/gestures/gesture-2-thumb.png', color: '#22d3a0', glow: '#34d399' },
-    { id: 'gesture-3', pattern: [0,1,0,0,0], name: '3. Только указательный',                lane: 2,    note: 64,   emoji: '3', keys: 'S / 3', image: 'assets/gestures/gesture-3-index.png', color: '#f59e0b', glow: '#fbbf24' },
-    { id: 'gesture-4', pattern: [0,1,1,0,0], name: '4. Указательный + средний',             lane: 3,    note: 65,   emoji: '4', keys: 'S+D / 4', image: 'assets/gestures/gesture-4-index-middle.png', color: '#38bdf8', glow: '#7dd3fc' },
-    { id: 'three-raised', pattern: [0,1,1,1,0], name: 'Три пальца без большого и мизинца', lane: 4,    note: 67,   emoji: '5', keys: 'S+D+F / 5', image: 'assets/gestures/gesture-three-raised.jpeg', color: '#f472b6', glow: '#f9a8d4' },
-    { id: 'four-raised',  pattern: [0,1,1,1,1], name: 'Четыре пальца без большого',         lane: 5,    note: 69,   emoji: '6', keys: 'S+D+F+G / 6', image: 'assets/gestures/gesture-four-raised.jpeg', color: '#fb7185', glow: '#fda4af' },
-    { id: 'gesture-8', pattern: [1,1,1,0,0], name: '8. Указательный + средний + большой',   lane: 6,    note: 71,   emoji: '8', keys: 'A+S+D / 8', image: 'assets/gestures/gesture-8-three-side.png', color: '#8b5cf6', glow: '#a78bfa' },
-    { id: 'fist',      pattern: [0,0,0,0,0], name: 'Кулак',                                lane: 7,    note: 72,   emoji: '0', keys: '0', image: 'assets/gestures/gesture-fist.jpeg', color: '#14b8a6', glow: '#5eead4' },
-    { id: 'open-hand', pattern: [1,1,1,1,1], name: 'Открытая ладонь',                       lane: 8,    note: 74,   emoji: '9', keys: 'A+S+D+F+G / 9', image: 'assets/gestures/gesture-open-hand.jpeg', color: '#ec4899', glow: '#f9a8d4' },
+    { id: 'gesture-1', pattern: [1,1,0,0,0], name: _t('1. Указательный + большой'),             lane: 0,    note: 60,   emoji: '1', keys: 'A+S / 1', image: 'assets/gestures/gesture-1-thumb-index.png', color: '#7c3aed', glow: '#a855f7' },
+    { id: 'gesture-2', pattern: [1,0,0,0,0], name: _t('2. Только большой'),                     lane: 1,    note: 62,   emoji: '2', keys: 'A / 2', image: 'assets/gestures/gesture-2-thumb.png', color: '#22d3a0', glow: '#34d399' },
+    { id: 'gesture-3', pattern: [0,1,0,0,0], name: _t('3. Только указательный'),                lane: 2,    note: 64,   emoji: '3', keys: 'S / 3', image: 'assets/gestures/gesture-3-index.png', color: '#f59e0b', glow: '#fbbf24' },
+    { id: 'gesture-4', pattern: [0,1,1,0,0], name: _t('4. Указательный + средний'),             lane: 3,    note: 65,   emoji: '4', keys: 'S+D / 4', image: 'assets/gestures/gesture-4-index-middle.png', color: '#38bdf8', glow: '#7dd3fc' },
+    { id: 'three-raised', pattern: [0,1,1,1,0], name: _t('Три пальца без большого и мизинца'), lane: 4,    note: 67,   emoji: '5', keys: 'S+D+F / 5', image: 'assets/gestures/gesture-three-raised.jpeg', color: '#f472b6', glow: '#f9a8d4' },
+    { id: 'four-raised',  pattern: [0,1,1,1,1], name: _t('Четыре пальца без большого'),         lane: 5,    note: 69,   emoji: '6', keys: 'S+D+F+G / 6', image: 'assets/gestures/gesture-four-raised.jpeg', color: '#fb7185', glow: '#fda4af' },
+    { id: 'gesture-8', pattern: [1,1,1,0,0], name: _t('8. Указательный + средний + большой'),   lane: 6,    note: 71,   emoji: '8', keys: 'A+S+D / 8', image: 'assets/gestures/gesture-8-three-side.png', color: '#8b5cf6', glow: '#a78bfa' },
+    { id: 'fist',      pattern: [0,0,0,0,0], name: _t('Кулак'),                                lane: 7,    note: 72,   emoji: '0', keys: '0', image: 'assets/gestures/gesture-fist.jpeg', color: '#14b8a6', glow: '#5eead4' },
+    { id: 'open-hand', pattern: [1,1,1,1,1], name: _t('Открытая ладонь'),                       lane: 8,    note: 74,   emoji: '9', keys: 'A+S+D+F+G / 9', image: 'assets/gestures/gesture-open-hand.jpeg', color: '#ec4899', glow: '#f9a8d4' },
   ];
 
   const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];

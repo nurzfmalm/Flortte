@@ -1,5 +1,9 @@
 /** Pure calculations used by the guided glove diagnostic. */
 const DiagnosticMetrics = (() => {
+  // Keep calculation modules usable independently of the browser interface.
+  const _t = typeof I18n !== 'undefined' ? I18n.t : (message, ...values) =>
+    typeof message === 'string' ? message : message.reduce((text, part, index) =>
+      text + part + (index < values.length ? values[index] : ''), '');
   const MIN_SAMPLES = 20;
   const MIN_SPAN = 120;
   const MAX_OPEN_NOISE = 80;
@@ -54,16 +58,16 @@ const DiagnosticMetrics = (() => {
     const thresholdsValid = thresholds.release > thresholds.bend + 50;
 
     const checks = [
-      check('stream', 'Поток данных', own.count >= MIN_SAMPLES, 'fail', `${own.count} отсчётов`),
-      check('baseline', 'Базовое открытое положение', ownOpen.count >= 10, 'fail', `${ownOpen.count} отсчётов`),
-      check('thresholds', 'Порядок порогов', thresholdsValid, 'fail', `сгиб ${thresholds.bend}, разгиб ${thresholds.release}`),
-      check('range', 'Диапазон движения', own.span >= MIN_SPAN, 'fail', `${Math.round(own.span)} ADC`),
-      check('bend', 'Порог сгибания', bendReached, 'fail', `минимум ${Math.round(own.min)}, порог ${thresholds.bend}`),
-      check('release', 'Возврат в прямое положение', releaseReached, 'fail', `максимум ${Math.round(own.max)}, порог ${thresholds.release}`),
-      check('rail', 'Сенсор не завис на границе', !stuckAtRail, 'fail', `${Math.round(railRatio * 100)}% крайних значений`),
-      check('cycles', 'Повторяемость', bends >= 2, 'warn', `${bends} сгибаний`),
-      check('noise', 'Шум в открытом положении', ownOpen.stddev <= MAX_OPEN_NOISE, 'warn', `σ ${ownOpen.stddev.toFixed(1)} ADC`),
-      check('isolation', 'Независимость от соседних пальцев', independence >= MIN_INDEPENDENCE, 'warn', `${independence.toFixed(2)}×`),
+      check('stream', _t('Поток данных'), own.count >= MIN_SAMPLES, 'fail', _t`${own.count} отсчётов`),
+      check('baseline', _t('Базовое открытое положение'), ownOpen.count >= 10, 'fail', _t`${ownOpen.count} отсчётов`),
+      check('thresholds', _t('Порядок порогов'), thresholdsValid, 'fail', _t`сгиб ${thresholds.bend}, разгиб ${thresholds.release}`),
+      check('range', _t('Диапазон движения'), own.span >= MIN_SPAN, 'fail', `${Math.round(own.span)} ADC`),
+      check('bend', _t('Порог сгибания'), bendReached, 'fail', _t`минимум ${Math.round(own.min)}, порог ${thresholds.bend}`),
+      check('release', _t('Возврат в прямое положение'), releaseReached, 'fail', _t`максимум ${Math.round(own.max)}, порог ${thresholds.release}`),
+      check('rail', _t('Сенсор не завис на границе'), !stuckAtRail, 'fail', _t`${Math.round(railRatio * 100)}% крайних значений`),
+      check('cycles', _t('Повторяемость'), bends >= 2, 'warn', _t`${bends} сгибаний`),
+      check('noise', _t('Шум в открытом положении'), ownOpen.stddev <= MAX_OPEN_NOISE, 'warn', `σ ${ownOpen.stddev.toFixed(1)} ADC`),
+      check('isolation', _t('Независимость от соседних пальцев'), independence >= MIN_INDEPENDENCE, 'warn', `${independence.toFixed(2)}×`),
     ];
 
     const failures = checks.filter(item => !item.passed && item.level === 'fail');
@@ -72,14 +76,14 @@ const DiagnosticMetrics = (() => {
 
     const recommendations = [];
     const failed = (id) => checks.some(item => item.id === id && !item.passed);
-    if (failed('stream') || failed('baseline')) recommendations.push('Проверьте Bluetooth, питание ESP32 и повторите тест без пауз в передаче данных.');
-    if (failed('thresholds')) recommendations.push('В Настройках задайте порог разгибания минимум на 51 ADC выше порога сгибания.');
-    if (failed('range') || stuckAtRail) recommendations.push('Проверьте пайку, резистор 10 кОм и провод этого сенсора.');
-    if (!bendReached || !releaseReached) recommendations.push('Повторите калибровку и затем снова запустите тест.');
-    if (failed('cycles')) recommendations.push('Повторите тест и согните палец минимум три раза.');
-    if (failed('noise')) recommendations.push('Закрепите провод и добавьте фильтрацию питания возле ESP32.');
-    if (failed('isolation')) recommendations.push('Двигайте только проверяемым пальцем или ослабьте крепление соседнего сенсора.');
-    if (!recommendations.length) recommendations.push('Сенсор готов к игре.');
+    if (failed('stream') || failed('baseline')) recommendations.push(_t('Проверьте Bluetooth, питание ESP32 и повторите тест без пауз в передаче данных.'));
+    if (failed('thresholds')) recommendations.push(_t('В Настройках задайте порог разгибания минимум на 51 ADC выше порога сгибания.'));
+    if (failed('range') || stuckAtRail) recommendations.push(_t('Проверьте пайку, резистор 10 кОм и провод этого сенсора.'));
+    if (!bendReached || !releaseReached) recommendations.push(_t('Повторите калибровку и затем снова запустите тест.'));
+    if (failed('cycles')) recommendations.push(_t('Повторите тест и согните палец минимум три раза.'));
+    if (failed('noise')) recommendations.push(_t('Закрепите провод и добавьте фильтрацию питания возле ESP32.'));
+    if (failed('isolation')) recommendations.push(_t('Двигайте только проверяемым пальцем или ослабьте крепление соседнего сенсора.'));
+    if (!recommendations.length) recommendations.push(_t('Сенсор готов к игре.'));
 
     return {
       status,

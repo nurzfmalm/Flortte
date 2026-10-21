@@ -1,7 +1,11 @@
 /** Calibration and per-finger thresholds shown on the Settings screen. */
 const GloveSettings = (() => {
+  // Keep calculation modules usable independently of the browser interface.
+  const _t = typeof I18n !== 'undefined' ? I18n.t : (message, ...values) =>
+    typeof message === 'string' ? message : message.reduce((text, part, index) =>
+      text + part + (index < values.length ? values[index] : ''), '');
   const SENSOR_KEYS = ['keyPinch', 'indexThumb', 'middleThumb', 'ring', 'little'];
-  const FINGER_NAMES = ['большой', 'указательный', 'средний', 'безымянный', 'мизинец'];
+  const FINGER_NAMES = [_t('большой'), _t('указательный'), _t('средний'), _t('безымянный'), _t('мизинец')];
   const MAX_ADC = 4095;
   let _thresholdInputs = [];
   let _calibrationStatus;
@@ -62,12 +66,12 @@ const GloveSettings = (() => {
     _isCalibrating = true;
     const previousStep = _step;
     _showCalibrationAction(_step);
-    _setCalibrationStatus('Перчатка сохраняет шаг. Удерживайте положение пальцев…', 'running');
+    _setCalibrationStatus(_t('Перчатка сохраняет шаг. Удерживайте положение пальцев…'), 'running');
     const messages = {
-      start: 'Согните все подключенные пальцы до максимума.',
-      bent: 'Сгиб сохранён. Теперь полностью выпрямите пальцы.',
-      open: 'Калибровка завершена.',
-      cancel: 'Калибровка отменена.',
+      start: _t('Согните все подключенные пальцы до максимума.'),
+      bent: _t('Сгиб сохранён. Теперь полностью выпрямите пальцы.'),
+      open: _t('Калибровка завершена.'),
+      cancel: _t('Калибровка отменена.'),
     };
     try {
       const state = await ESP32.calibrate(action);
@@ -84,10 +88,10 @@ const GloveSettings = (() => {
       }
       const disabled = SENSOR_KEYS.filter(key => state.enabled?.[key] === false);
       let warning = action === 'open' && disabled.length
-        ? ` Не реагируют датчики: ${disabled.map(key => FINGER_NAMES[SENSOR_KEYS.indexOf(key)]).join(', ')}. Проверьте их и повторите калибровку.`
+        ? _t` Не реагируют датчики: ${disabled.map(key => FINGER_NAMES[SENSOR_KEYS.indexOf(key)]).join(', ')}. Проверьте их и повторите калибровку.`
         : '';
       if (action === 'open' && state.calibrationSaved === false) {
-        warning += ' Не удалось сохранить калибровку в памяти перчатки. После выключения её нужно будет повторить.';
+        warning += _t(' Не удалось сохранить калибровку в памяти перчатки. После выключения её нужно будет повторить.');
       }
       _setCalibrationStatus(messages[action] + warning, warning ? 'error' : action === 'open' ? 'done' : action === 'cancel' ? '' : 'running');
     } catch (error) {
@@ -95,7 +99,7 @@ const GloveSettings = (() => {
       _isCalibrating = retryStep !== 'idle';
       _showCalibrationAction(retryStep);
       _setCalibrationSteps(retryStep === 'idle' ? 'error' : retryStep);
-      _setCalibrationStatus(`Шаг не выполнен: ${error.message}`, 'error');
+      _setCalibrationStatus(_t`Шаг не выполнен: ${error.message}`, 'error');
     } finally {
       _pending = false;
       _showCalibrationAction(_step);
@@ -123,7 +127,7 @@ const GloveSettings = (() => {
     Gestures.setThreshold(SENSOR_KEYS[index], type, numeric);
     input.classList.remove('input-error');
     if (Gestures.lastStorageError) {
-      _setCalibrationStatus('Порог применён, но не сохранён. Освободите место в хранилище приложения.', 'error');
+      _setCalibrationStatus(_t('Порог применён, но не сохранён. Освободите место в хранилище приложения.'), 'error');
     }
     if (syncAfter) _syncThreshold(index);
   }
@@ -136,20 +140,20 @@ const GloveSettings = (() => {
     }
     if (_gloveStatus) {
       _gloveStatus.textContent = status === 'connected'
-        ? 'FlortteGlove подключена по Bluetooth'
+        ? _t('FlortteGlove подключена по Bluetooth')
         : status === 'connecting'
-          ? 'Подключение Bluetooth…'
+          ? _t('Подключение Bluetooth…')
           : status === 'error'
             ? `Bluetooth: ${ESP32.lastError}`
-            : 'Bluetooth не подключён';
+            : _t('Bluetooth не подключён');
     }
     if (status !== 'connected' && _isCalibrating && !_pending) {
       _isCalibrating = false;
       _showCalibrationAction('idle');
       _setCalibrationSteps('error');
-      _setCalibrationStatus('Связь с перчаткой потеряна. Подключитесь и начните калибровку заново.', 'error');
+      _setCalibrationStatus(_t('Связь с перчаткой потеряна. Подключитесь и начните калибровку заново.'), 'error');
     } else if (!_isCalibrating && status === 'connected' && _lastStatus !== 'connected') {
-      _setCalibrationStatus('Перчатка подключена. Можно запускать калибровку.', 'done');
+      _setCalibrationStatus(_t('Перчатка подключена. Можно запускать калибровку.'), 'done');
     }
     _lastStatus = status;
     _showCalibrationAction(_step);

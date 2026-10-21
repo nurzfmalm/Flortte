@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' blob:" />
-  <title>Flortte by Orchid 6767</title>
+  <title>Flortte by Orchid</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -22,7 +22,10 @@
       <div class="home-logo">
         <span class="logo-f">F</span><span class="logo-rest">lortte</span>
       </div>
-      <p class="home-sub">by Orchid 6767</p>
+      <p class="home-sub">by Orchid</p>
+      <label class="language-picker"><span>Язык</span>
+        <select class="language-select" aria-label="Язык"><option value="ru">Русский</option><option value="kk">Қазақша</option></select>
+      </label>
 
       <div class="gesture-preview">
         <div class="gp-sensor" id="hp-s0">
@@ -181,7 +184,7 @@
           <div class="exercise-playback-control">
             <span class="exercise-control-heading">
               <strong>Последовательность</strong>
-              <span id="exercise-seed-value">Seed 6767</span>
+              <span id="exercise-seed-value">Seed 42</span>
             </span>
             <button class="btn-secondary small" id="exercise-new-seed" type="button">Создать новый набор</button>
             <small>Одинаковый seed создает тот же набор для повторного сравнения.</small>
@@ -431,6 +434,9 @@
     <div class="settings-body">
       <div class="setting-group glove-settings">
         <h3>Перчатка</h3>
+        <label class="language-picker"><span>Язык</span>
+          <select class="language-select" aria-label="Язык"><option value="ru">Русский</option><option value="kk">Қазақша</option></select>
+        </label>
         <div class="settings-glove-row">
           <div>
             <p>BLE-перчатка: <strong>FlortteGlove</strong></p>
@@ -558,6 +564,8 @@
   </div>
 
   <!-- ═══════════════════════════════ SCRIPTS ═══════════════════════════════ -->
+  <script src="js/i18n-kk.js"></script>
+  <script src="js/i18n.js"></script>
   <script src="js/esp32.js"></script>
   <script src="js/gestures.js"></script>
   <script src="js/audio.js"></script>
