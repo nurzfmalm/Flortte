@@ -6,6 +6,10 @@ After every exercise, Flortte stores the success rate, mean timing error (MTE) a
 
 The training builder generates a deterministic gesture schedule without MIDI. A plan stores BPM, tile fall time, hit tolerance, action count, generation mode, and seed. The same seed produces the same sequence for repeat comparisons. Background audio does not control tile timing. The offline presets include Гарри Поттер, an instrumental Синий трактор training arrangement, and an original Baby Shark training rhythm. Users may also select a local audio file.
 
+## Interface languages
+
+Choose **Русский** or **Қазақша** on the home screen or in Settings. The choice is stored on the device and works offline. Changing the language restarts the interface at the main menu; saved training plans, results and glove calibration are retained. User-entered training names are kept as entered.
+
 ## Run locally
 
 Requirements: Node.js 22 or newer and a computer with Bluetooth enabled.

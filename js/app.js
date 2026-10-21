@@ -1,5 +1,9 @@
 /** Screen routing, quick training presets, settings, and game HUD. */
 const App = (() => {
+  // Keep calculation modules usable independently of the browser interface.
+  const _t = typeof I18n !== 'undefined' ? I18n.t : (message, ...values) =>
+    typeof message === 'string' ? message : message.reduce((text, part, index) =>
+      text + part + (index < values.length ? values[index] : ''), '');
   let _currentScreen = 'home';
   let _loadedSession = null;
 
@@ -17,9 +21,9 @@ const App = (() => {
       const hudName = document.getElementById('hud-song-name');
       if (hudName) hudName.textContent = _loadedSession.name;
       const details = _loadedSession.exercise
-        ? `${_loadedSession.exercise.bpm} BPM · ${_loadedSession.exercise.actionCount} жестов · падение ${(_loadedSession.approachTimeMs / 1000).toFixed(1)} с`
+        ? _t`${_loadedSession.exercise.bpm} BPM · ${_loadedSession.exercise.actionCount} жестов · падение ${(_loadedSession.approachTimeMs / 1000).toFixed(1)} с`
         : _loadedSession.name;
-      _showGameOverlay('Готов?', details, 'Поехали!', () => Game.start(_loadedSession));
+      _showGameOverlay(_t('Готов?'), details, _t('Поехали!'), () => Game.start(_loadedSession));
     }
   }
 
@@ -37,10 +41,10 @@ const App = (() => {
         if (fills[index]) fills[index].style.width = `${percent.toFixed(1)}%`;
       });
       dot.className = `esp-dot${status === 'connected' ? ' connected' : status === 'error' ? ' error' : ''}`;
-      label.textContent = status === 'connected' ? 'Перчатка FlortteGlove подключена'
-        : status === 'connecting' ? 'Подключение Bluetooth…'
+      label.textContent = status === 'connected' ? _t('Перчатка FlortteGlove подключена')
+        : status === 'connecting' ? _t('Подключение Bluetooth…')
         : status === 'error' ? `Bluetooth: ${ESP32.lastError}`
-        : 'Bluetooth не подключён';
+        : _t('Bluetooth не подключён');
       label.title = ESP32.lastError || ESP32.lastUrl;
     });
   }
@@ -55,7 +59,7 @@ const App = (() => {
       .forEach((preset) => {
         const card = document.createElement('section');
         card.className = 'song-card quick-training-card';
-        card.innerHTML = `
+        card.innerHTML = _t`
           <div class="song-card-main">
             <div class="song-thumb"></div>
             <div class="song-info">
@@ -67,7 +71,7 @@ const App = (() => {
           <p class="song-card-error" role="alert"></p>`;
         card.querySelector('.song-thumb').textContent = preset.emoji;
         card.querySelector('.song-title').textContent = preset.name;
-        card.querySelector('.song-meta').textContent = `30 жестов · ${preset.defaultBpm} BPM · сбалансированный набор`;
+        card.querySelector('.song-meta').textContent = _t`30 жестов · ${preset.defaultBpm} BPM · сбалансированный набор`;
         const button = card.querySelector('.song-play-button');
         const error = card.querySelector('.song-card-error');
         button.addEventListener('click', () => {
@@ -79,7 +83,7 @@ const App = (() => {
             });
             showScreen('game');
           } catch (caught) {
-            error.textContent = caught.message || 'Не удалось создать тренировку.';
+            error.textContent = caught.message || _t('Не удалось создать тренировку.');
           }
         });
         container.appendChild(card);
@@ -121,16 +125,16 @@ const App = (() => {
       const timingText = timing?.meanErrorMs !== null
         && timing?.meanErrorMs !== undefined
         && Number.isFinite(Number(timing.meanErrorMs))
-        ? ` · MTE: ${Number(timing.meanErrorMs).toFixed(1)} мс · SD: ${Number(timing.variabilityMs).toFixed(1)} мс`
+        ? _t` · MTE: ${Number(timing.meanErrorMs).toFixed(1)} мс · SD: ${Number(timing.variabilityMs).toFixed(1)} мс`
         : '';
       _showGameOverlay(
-        '🎉 Тренировка завершена!',
-        `Счёт: ${score.toLocaleString()} · Успех: ${successPercent}% · ${hits} из ${totalNotes} плиток${timingText}`,
-        'Повторить тренировку',
+        _t('🎉 Тренировка завершена!'),
+        _t`Счёт: ${score.toLocaleString()} · Успех: ${successPercent}% · ${hits} из ${totalNotes} плиток${timingText}`,
+        _t('Повторить тренировку'),
         () => {
           if (_loadedSession) Game.start(_loadedSession);
         },
-        'Выйти в меню',
+        _t('Выйти в меню'),
         () => {
           Game.stop();
           showScreen('home');
@@ -164,7 +168,7 @@ const App = (() => {
     };
 
     approachInput.value = Game.getApproachTime();
-    approachValue.textContent = `${Game.getApproachTime()} мс`;
+    approachValue.textContent = _t`${Game.getApproachTime()} мс`;
     windowInput.value = Game.getWindow();
     windowValue.textContent = Game.getWindow();
     volumeInput.value = Math.round(AudioPlayer.getVolume() * 100);
@@ -172,7 +176,7 @@ const App = (() => {
 
     approachInput.addEventListener('input', () => {
       markNumber(approachInput, 1000, 5000);
-      approachValue.textContent = `${approachInput.value} мс`;
+      approachValue.textContent = _t`${approachInput.value} мс`;
     });
     windowInput.addEventListener('input', () => {
       markNumber(windowInput, 100, 500);
@@ -190,20 +194,20 @@ const App = (() => {
       Game.setApproachTime(approach);
       Game.setWindow(hitWindow);
       AudioPlayer.setVolume(volume / 100);
-      approachValue.textContent = `${approach} мс`;
+      approachValue.textContent = _t`${approach} мс`;
       windowValue.textContent = hitWindow;
       volumeValue.textContent = `${volume}%`;
-      saveButton.textContent = '✓ Сохранено';
-      setTimeout(() => { saveButton.textContent = 'Сохранить'; }, 1500);
+      saveButton.textContent = _t('✓ Сохранено');
+      setTimeout(() => { saveButton.textContent = _t('Сохранить'); }, 1500);
     });
 
     bluetoothButton?.addEventListener('click', async () => {
       bluetoothButton.disabled = true;
       try {
         await ESP32.connect();
-        bluetoothButton.textContent = '✓ FlortteGlove подключена';
+        bluetoothButton.textContent = _t('✓ FlortteGlove подключена');
       } catch (_) {
-        bluetoothButton.textContent = ESP32.lastError || 'Ошибка Bluetooth';
+        bluetoothButton.textContent = ESP32.lastError || _t('Ошибка Bluetooth');
       } finally {
         bluetoothButton.disabled = false;
       }
@@ -228,9 +232,9 @@ const App = (() => {
       button.disabled = true;
       try {
         await ESP32.connect();
-        button.textContent = '✓ FlortteGlove подключена';
+        button.textContent = _t('✓ FlortteGlove подключена');
       } catch (_) {
-        button.textContent = 'Повторить подключение';
+        button.textContent = _t('Повторить подключение');
       } finally {
         button.disabled = false;
       }
@@ -240,14 +244,14 @@ const App = (() => {
       const wasActive = Game.isActive();
       if (wasActive) Game.pause();
       _showGameOverlay(
-        'Выйти из игры?',
-        'Текущий результат этой попытки не сохранится.',
-        'Продолжить игру',
+        _t('Выйти из игры?'),
+        _t('Текущий результат этой попытки не сохранится.'),
+        _t('Продолжить игру'),
         () => {
           if (wasActive) Game.resume();
           else showScreen('game');
         },
-        'Выйти в меню',
+        _t('Выйти в меню'),
         () => {
           Game.stop();
           showScreen('home');
@@ -258,22 +262,22 @@ const App = (() => {
 
   function _wireDebugKeys() {
     const fingerKeyMap = {
-      KeyA: { index: 0, label: 'Большой' },
-      KeyS: { index: 1, label: 'Указательный' },
-      KeyD: { index: 2, label: 'Средний' },
-      KeyF: { index: 3, label: 'Безымянный' },
-      KeyG: { index: 4, label: 'Мизинец' },
+      KeyA: { index: 0, label: _t('Большой') },
+      KeyS: { index: 1, label: _t('Указательный') },
+      KeyD: { index: 2, label: _t('Средний') },
+      KeyF: { index: 3, label: _t('Безымянный') },
+      KeyG: { index: 4, label: _t('Мизинец') },
     };
     const comboByCode = {
-      Digit0: { bits: [0, 0, 0, 0, 0], label: 'Кулак' },
-      Digit1: { bits: [1, 1, 0, 0, 0], label: 'Указательный + большой' },
-      Digit2: { bits: [1, 0, 0, 0, 0], label: 'Только большой' },
-      Digit3: { bits: [0, 1, 0, 0, 0], label: 'Только указательный' },
-      Digit4: { bits: [0, 1, 1, 0, 0], label: 'Указательный + средний' },
-      Digit5: { bits: [0, 1, 1, 1, 0], label: 'Три пальца' },
-      Digit6: { bits: [0, 1, 1, 1, 1], label: 'Четыре пальца' },
-      Digit8: { bits: [1, 1, 1, 0, 0], label: 'Три пальца с большим' },
-      Digit9: { bits: [1, 1, 1, 1, 1], label: 'Открытая ладонь' },
+      Digit0: { bits: [0, 0, 0, 0, 0], label: _t('Кулак') },
+      Digit1: { bits: [1, 1, 0, 0, 0], label: _t('Указательный + большой') },
+      Digit2: { bits: [1, 0, 0, 0, 0], label: _t('Только большой') },
+      Digit3: { bits: [0, 1, 0, 0, 0], label: _t('Только указательный') },
+      Digit4: { bits: [0, 1, 1, 0, 0], label: _t('Указательный + средний') },
+      Digit5: { bits: [0, 1, 1, 1, 0], label: _t('Три пальца') },
+      Digit6: { bits: [0, 1, 1, 1, 1], label: _t('Четыре пальца') },
+      Digit8: { bits: [1, 1, 1, 0, 0], label: _t('Три пальца с большим') },
+      Digit9: { bits: [1, 1, 1, 1, 1], label: _t('Открытая ладонь') },
     };
     Object.keys(comboByCode).forEach((code) => {
       comboByCode[code.replace('Digit', 'Numpad')] = comboByCode[code];

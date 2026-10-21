@@ -1,5 +1,9 @@
 /** Web Bluetooth bridge for the Flortte ESP32 glove. */
 const ESP32 = (() => {
+  // Keep calculation modules usable independently of the browser interface.
+  const _t = typeof I18n !== 'undefined' ? I18n.t : (message, ...values) =>
+    typeof message === 'string' ? message : message.reduce((text, part, index) =>
+      text + part + (index < values.length ? values[index] : ''), '');
   const DEVICE_NAME = 'FlortteGlove';
   const SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
   const RX_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
@@ -61,7 +65,7 @@ const ESP32 = (() => {
 
   function _normalizeSensors(values) {
     if (!values || typeof values !== 'object' || Array.isArray(values)) {
-      throw new TypeError('Поле sensors отсутствует');
+      throw new TypeError(_t('Поле sensors отсутствует'));
     }
     const candidates = {
       keyPinch: values.key ?? values.keyPinch ?? values.thumb,
@@ -73,14 +77,14 @@ const ESP32 = (() => {
     return Object.fromEntries(Object.entries(candidates).map(([key, value]) => {
       const numeric = Number(value);
       if (!Number.isFinite(numeric) || numeric < 0 || numeric > 4095) {
-        throw new TypeError(`Некорректное значение сенсора ${key}`);
+        throw new TypeError(_t`Некорректное значение сенсора ${key}`);
       }
       return [key, numeric];
     }));
   }
 
   function _markDataError(error) {
-    _lastError = `Некорректные BLE-данные: ${error.message || String(error)}`;
+    _lastError = _t`Некорректные BLE-данные: ${error.message || String(error)}`;
     Object.keys(sensors).forEach(key => { sensors[key] = NaN; });
     _lastState = { ..._lastState, valid: false };
     _setStatus('error');
@@ -88,7 +92,7 @@ const ESP32 = (() => {
 
   function _applyState(data = {}, { markConnected = true } = {}) {
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
-      throw new TypeError('BLE-состояние должно быть объектом');
+      throw new TypeError(_t('BLE-состояние должно быть объектом'));
     }
     const values = _normalizeSensors(data.sensors);
     Object.assign(sensors, values);
@@ -125,7 +129,7 @@ const ESP32 = (() => {
         _applyState(JSON.parse(text));
         return;
       }
-      if (_notificationFrame.length > 4096) throw new Error('BLE-пакет слишком длинный');
+      if (_notificationFrame.length > 4096) throw new Error(_t('BLE-пакет слишком длинный'));
       if (_notificationFrame.endsWith('\n')) {
         const frame = _notificationFrame;
         _notificationFrame = null;
@@ -148,7 +152,7 @@ const ESP32 = (() => {
 
   async function connect() {
     if (!navigator.bluetooth) {
-      _lastError = 'Web Bluetooth не поддерживается этим браузером';
+      _lastError = _t('Web Bluetooth не поддерживается этим браузером');
       _setStatus('error');
       throw new Error(_lastError);
     }
@@ -180,7 +184,7 @@ const ESP32 = (() => {
       }
     } catch (err) {
       if (_device?.gatt?.connected) _device.gatt.disconnect();
-      _lastError = err?.name === 'NotFoundError' ? 'Выбор Bluetooth-устройства отменён' : (err.message || String(err));
+      _lastError = err?.name === 'NotFoundError' ? _t('Выбор Bluetooth-устройства отменён') : (err.message || String(err));
       _setStatus('error');
       throw err;
     }
@@ -192,7 +196,7 @@ const ESP32 = (() => {
   }
 
   async function _writeCommand(command) {
-    if (!_rx || !_device?.gatt?.connected) throw new Error('Сначала подключите перчатку по Bluetooth');
+    if (!_rx || !_device?.gatt?.connected) throw new Error(_t('Сначала подключите перчатку по Bluetooth'));
     const bytes = new TextEncoder().encode(command);
     if (_rx.writeValueWithResponse) await _rx.writeValueWithResponse(bytes);
     else if (_rx.writeValueWithoutResponse) await _rx.writeValueWithoutResponse(bytes);
@@ -200,7 +204,7 @@ const ESP32 = (() => {
   }
 
   function _waitForFreshState(version, predicate, timeoutMs = 4000) {
-    if (_status === 'disconnected') return Promise.reject(new Error('Соединение с перчаткой потеряно'));
+    if (_status === 'disconnected') return Promise.reject(new Error(_t('Соединение с перчаткой потеряно')));
     if (_stateVersion > version && predicate(_lastState)) return Promise.resolve(_snapshotState());
 
     return new Promise((resolve, reject) => {
@@ -215,24 +219,24 @@ const ESP32 = (() => {
       };
       const onState = (_values, status, state) => {
         if (status === 'disconnected' || status === 'error') {
-          finish(new Error(_lastError || 'Соединение с перчаткой потеряно'));
+          finish(new Error(_lastError || _t('Соединение с перчаткой потеряно')));
         } else if (_stateVersion > version && predicate(state)) {
           finish(null, state);
         }
       };
-      const timer = setTimeout(() => finish(new Error('Перчатка не подтвердила команду калибровки')), timeoutMs);
+      const timer = setTimeout(() => finish(new Error(_t('Перчатка не подтвердила команду калибровки'))), timeoutMs);
       onData(onState);
     });
   }
 
   async function calibrate(action = 'start') {
     if (!['start', 'bent', 'open', 'cancel'].includes(action)) {
-      throw new Error('Неизвестная команда калибровки');
+      throw new Error(_t('Неизвестная команда калибровки'));
     }
-    if (_calibrationPending) throw new Error('Дождитесь завершения текущего шага калибровки');
-    if (!_rx || !_device?.gatt?.connected) throw new Error('Сначала подключите перчатку по Bluetooth');
+    if (_calibrationPending) throw new Error(_t('Дождитесь завершения текущего шага калибровки'));
+    if (!_rx || !_device?.gatt?.connected) throw new Error(_t('Сначала подключите перчатку по Bluetooth'));
     if (!_lastState.valid || !Number.isInteger(_lastState.calibrationSeq)) {
-      throw new Error('Обновите прошивку FlortteGlove: она должна подтверждать шаги калибровки');
+      throw new Error(_t('Обновите прошивку FlortteGlove: она должна подтверждать шаги калибровки'));
     }
     const version = _stateVersion;
     const sequence = _lastState.calibrationSeq;
@@ -240,11 +244,11 @@ const ESP32 = (() => {
     _calibrationPending = true;
     try {
       await _writeCommand(`calibrate:${action}`);
-      if (_status !== 'connected') throw new Error('Соединение с перчаткой потеряно');
+      if (_status !== 'connected') throw new Error(_t('Соединение с перчаткой потеряно'));
       const state = await _waitForFreshState(version, state =>
         state.calibrationSeq !== sequence && (state.calibrationStep === expectedStep || state.calibrationStep === 'error'));
       if (state.calibrationStep === 'error') {
-        throw new Error('Поза не сохранена. Сначала сохраните сгиб, затем полностью выпрямите пальцы; проверьте датчики');
+        throw new Error(_t('Поза не сохранена. Сначала сохраните сгиб, затем полностью выпрямите пальцы; проверьте датчики'));
       }
       return state;
     } finally {

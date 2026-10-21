@@ -1474,3 +1474,7 @@ input[type="range"] { accent-color: var(--violet); min-height: 38px; }
   .overlay-actions { width: 100%; }
   .overlay-actions button { width: 100%; }
 }
+
+/* Language controls stay available from the home screen and glove settings. */
+.language-picker { display: inline-flex; align-items: center; justify-content: center; gap: 12px; margin: 8px 0 16px; }
+.language-select { font: inherit; padding: 8px 12px; border-radius: 12px; border: 1px solid #cbd5e1; color: #172554; background: #fff; max-width: 100%; }

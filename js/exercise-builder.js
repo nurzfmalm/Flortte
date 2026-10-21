@@ -1,22 +1,26 @@
 /** Build deterministic, MIDI-free gesture training sessions. */
 const ExerciseBuilder = (() => {
+  // Keep calculation modules usable independently of the browser interface.
+  const _t = typeof I18n !== 'undefined' ? I18n.t : (message, ...values) =>
+    typeof message === 'string' ? message : message.reduce((text, part, index) =>
+      text + part + (index < values.length ? values[index] : ''), '');
   const STORAGE_KEY = 'flortte_exercise_plan_v2';
-  const FINGER_LABELS = ['Большой', 'Указательный', 'Средний', 'Безымянный', 'Мизинец'];
+  const FINGER_LABELS = [_t('Большой'), _t('Указательный'), _t('Средний'), _t('Безымянный'), _t('Мизинец')];
   const GENERATION_MODES = new Set(['balanced', 'random', 'no-repeat', 'sequence']);
   const AUDIO_PRESETS = [
     {
       id: 'potter',
-      name: 'Гарри Поттер',
+      name: _t('Гарри Поттер'),
       emoji: '🧙',
-      description: 'Встроенное аудио',
+      description: _t('Встроенное аудио'),
       audioUrl: 'assets/audio/potter.mp3',
       defaultBpm: 70,
     },
     {
       id: 'blue-tractor',
-      name: 'Синий трактор',
+      name: _t('Синий трактор'),
       emoji: '🚜',
-      description: 'Инструментальный тренировочный трек',
+      description: _t('Инструментальный тренировочный трек'),
       audioUrl: 'assets/audio/blue-tractor.mp3',
       defaultBpm: 90,
     },
@@ -24,21 +28,21 @@ const ExerciseBuilder = (() => {
       id: 'baby-shark',
       name: 'Baby Shark',
       emoji: '🦈',
-      description: 'Оригинальный детский тренировочный ритм',
+      description: _t('Оригинальный детский тренировочный ритм'),
       audioUrl: 'assets/audio/baby-shark-training.mp3',
       defaultBpm: 115,
     },
     {
       id: 'none',
-      name: 'Без фоновой музыки',
+      name: _t('Без фоновой музыки'),
       emoji: '🔕',
-      description: 'Звуки нот генерируются приложением',
+      description: _t('Звуки нот генерируются приложением'),
       audioUrl: null,
       defaultBpm: 60,
     },
   ];
   const DEFAULT_PLAN = {
-    name: 'Моя тренировка',
+    name: _t('Моя тренировка'),
     gestureIds: [],
     bpm: 70,
     fallDurationMs: 2800,
@@ -46,7 +50,7 @@ const ExerciseBuilder = (() => {
     actionCount: 30,
     generationMode: 'balanced',
     audioId: 'potter',
-    seed: 6767,
+    seed: 42,
   };
 
   let _plan = { ...DEFAULT_PLAN, gestureIds: [] };
@@ -185,9 +189,9 @@ const ExerciseBuilder = (() => {
 
   function createSession(rawPlan, catalogue = _catalogue()) {
     const plan = normalizePlan(rawPlan, catalogue);
-    if (!plan.gestureIds.length) throw new Error('Выбери хотя бы один жест.');
+    if (!plan.gestureIds.length) throw new Error(_t('Выбери хотя бы один жест.'));
     if (plan.audioId === 'custom' && !_customAudio) {
-      throw new Error('Загрузи аудиофайл заново. Локальный файл не сохраняется после перезапуска приложения.');
+      throw new Error(_t('Загрузи аудиофайл заново. Локальный файл не сохраняется после перезапуска приложения.'));
     }
 
     const selected = new Set(plan.gestureIds);
@@ -242,7 +246,7 @@ const ExerciseBuilder = (() => {
     const preset = audioPreset(audioId);
     return createSession({
       ...DEFAULT_PLAN,
-      name: `Быстрая тренировка: ${preset.name}`,
+      name: _t`Быстрая тренировка: ${preset.name}`,
       gestureIds: catalogue.map(gesture => gesture.id),
       bpm: preset.defaultBpm,
       actionCount: 30,
@@ -263,7 +267,7 @@ const ExerciseBuilder = (() => {
 
   function _gestureTargets(gesture) {
     const indexes = targetFingerIndexes({ gestureIds: [gesture.id] }, [gesture]);
-    return indexes.map(index => FINGER_LABELS[index]).join(', ') || 'Вся кисть';
+    return indexes.map(index => FINGER_LABELS[index]).join(', ') || _t('Вся кисть');
   }
 
   function _buildGestureGrid() {
@@ -354,13 +358,13 @@ const ExerciseBuilder = (() => {
     const count = _plan.gestureIds.length;
     const targets = targetFingerIndexes().map(index => FINGER_LABELS[index]);
     const durationSeconds = Math.ceil((_plan.fallDurationMs + 500 + (_plan.actionCount - 1) * 60000 / _plan.bpm + 1000) / 1000);
-    _els.count.textContent = `${count} ${_plural(count, 'выбран', 'выбрано', 'выбрано')}`;
-    _els.targets.textContent = targets.length ? targets.join(', ') : 'Не выбраны';
-    _els.total.textContent = `${_plan.actionCount} действий`;
-    _els.duration.textContent = `${durationSeconds} сек`;
+    _els.count.textContent = `${count} ${_plural(count, _t('выбран'), _t('выбрано'), _t('выбрано'))}`;
+    _els.targets.textContent = targets.length ? targets.join(', ') : _t('Не выбраны');
+    _els.total.textContent = _t`${_plan.actionCount} действий`;
+    _els.duration.textContent = _t`${durationSeconds} сек`;
     _els.bpmValue.textContent = `${_plan.bpm} BPM`;
-    _els.fallValue.textContent = `${(_plan.fallDurationMs / 1000).toFixed(1)} с`;
-    _els.windowValue.textContent = `±${_plan.hitWindowMs} мс`;
+    _els.fallValue.textContent = _t`${(_plan.fallDurationMs / 1000).toFixed(1)} с`;
+    _els.windowValue.textContent = _t`±${_plan.hitWindowMs} мс`;
     _els.actionValue.textContent = String(_plan.actionCount);
     _els.seedValue.textContent = `Seed ${_plan.seed}`;
     _els.start.disabled = count === 0;
@@ -450,7 +454,7 @@ const ExerciseBuilder = (() => {
       const file = _els.audioInput.files[0];
       _els.uploadError.textContent = '';
       if (!file) {
-        _els.uploadError.textContent = 'Выбери аудиофайл.';
+        _els.uploadError.textContent = _t('Выбери аудиофайл.');
         return;
       }
       if (_customAudio?.audioUrl) URL.revokeObjectURL(_customAudio.audioUrl);
@@ -458,13 +462,13 @@ const ExerciseBuilder = (() => {
         id: 'custom',
         name: file.name.replace(/\.[^.]+$/, ''),
         emoji: '🎧',
-        description: 'Локальный аудиофайл',
+        description: _t('Локальный аудиофайл'),
         audioUrl: URL.createObjectURL(file),
         defaultBpm: _plan.bpm,
       };
       _plan.audioId = 'custom';
       savePlan(_plan);
-      _els.addAudio.textContent = '✓ Аудио выбрано';
+      _els.addAudio.textContent = _t('✓ Аудио выбрано');
       _render();
     });
     _els.start.addEventListener('click', () => {
@@ -473,7 +477,7 @@ const ExerciseBuilder = (() => {
         const session = createSession(_plan);
         if (_onStart) _onStart(session);
       } catch (error) {
-        _els.error.textContent = error.message || 'Не удалось создать тренировку.';
+        _els.error.textContent = error.message || _t('Не удалось создать тренировку.');
       }
     });
   }

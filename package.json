@@ -1,6 +1,6 @@
 {
   "name": "flortte-windows",
-  "version": "1.67.0",
+  "version": "1.68.0",
   "description": "Автономное приложение для пианино-перчатки Flortte",
   "main": "electron/main.js",
   "author": "Flortte",
@@ -8,7 +8,7 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "test": "node --check electron/main.js && node --check js/esp32.js && node --check js/gestures.js && node --check js/audio.js && node --check js/game-results.js && node --check js/exercise-builder.js && node --check js/diagnostic-metrics.js && node --check js/diagnostics.js && node --check js/glove-settings.js && node --check js/game.js && node --check js/app.js && node test/gestures.test.js && node test/diagnostics.test.js && node test/game-results.test.js && node test/exercise-builder.test.js && node test/song-library.test.js && node test/adversarial-regressions.test.js && node test/calibration.test.js",
+    "test": "node --check electron/main.js && node --check js/esp32.js && node --check js/gestures.js && node --check js/audio.js && node --check js/game-results.js && node --check js/exercise-builder.js && node --check js/diagnostic-metrics.js && node --check js/diagnostics.js && node --check js/glove-settings.js && node --check js/game.js && node --check js/app.js && node test/gestures.test.js && node test/diagnostics.test.js && node test/game-results.test.js && node test/exercise-builder.test.js && node test/song-library.test.js && node test/adversarial-regressions.test.js && node test/calibration.test.js && node --check js/i18n.js && node --check js/i18n-kk.js && node test/i18n.test.js",
     "build:win": "electron-builder --win nsis --x64 --publish never",
     "build:mac": "electron-builder --mac dmg --universal --publish never"
   },
@@ -18,7 +18,7 @@
   },
   "build": {
     "appId": "kz.flortte.app",
-    "productName": "Flortte by Orchid 6767",
+    "productName": "Flortte by Orchid",
     "asar": true,
     "directories": {
       "output": "dist",
@@ -36,7 +36,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "artifactName": "Flortte-Setup-${version}.${ext}"

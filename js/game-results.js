@@ -1,8 +1,12 @@
 /** Game performance calculations and local result history. */
 const GameResults = (() => {
+  // Keep calculation modules usable independently of the browser interface.
+  const _t = typeof I18n !== 'undefined' ? I18n.t : (message, ...values) =>
+    typeof message === 'string' ? message : message.reduce((text, part, index) =>
+      text + part + (index < values.length ? values[index] : ''), '');
   const STORAGE_KEY = 'flortte_game_results_v1';
   const HISTORY_LIMIT = 20;
-  const FINGER_LABELS = ['Большой', 'Указательный', 'Средний', 'Безымянный', 'Мизинец'];
+  const FINGER_LABELS = [_t('Большой'), _t('Указательный'), _t('Средний'), _t('Безымянный'), _t('Мизинец')];
 
   function _gesturePattern(gestureForLane, lane) {
     const gesture = typeof gestureForLane === 'function' ? gestureForLane(lane) : null;
@@ -11,7 +15,7 @@ const GameResults = (() => {
 
   function createSession(song, gestureForLane) {
     const session = {
-      songName: song?.name || 'Без названия',
+      songName: song?.name || _t('Без названия'),
       durationMs: Number(song?.durationMs) || 0,
       totalNotes: 0,
       hits: 0,

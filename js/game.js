@@ -15,6 +15,10 @@
  */
 
 const Game = (() => {
+  // Keep calculation modules usable independently of the browser interface.
+  const _t = typeof I18n !== 'undefined' ? I18n.t : (message, ...values) =>
+    typeof message === 'string' ? message : message.reduce((text, part, index) =>
+      text + part + (index < values.length ? values[index] : ''), '');
   const FALLBACK_COLORS = ['#7c3aed', '#22d3a0', '#f59e0b', '#38bdf8', '#f472b6', '#fb7185', '#8b5cf6', '#14b8a6', '#ec4899'];
   const FALLBACK_GLOWS  = ['#a855f7', '#34d399', '#fbbf24', '#7dd3fc', '#f9a8d4', '#fda4af', '#a78bfa', '#5eead4', '#f9a8d4'];
   const HIT_ZONE_Y   = 0.82;   // fraction from top
@@ -154,7 +158,7 @@ const Game = (() => {
     el.textContent = '';
     const img = document.createElement('img');
     img.src = image;
-    img.alt = gesture.name || 'Жест';
+    img.alt = gesture.name || _t('Жест');
     img.loading = 'lazy';
     el.appendChild(img);
   }
@@ -181,15 +185,15 @@ const Game = (() => {
       const icon = el.querySelector('.lane-gesture-icon');
       const label = el.querySelector('.lane-label');
       if (icon) _setGestureVisual(icon, gesture);
-      if (label) label.textContent = gesture.name || 'Жест';
+      if (label) label.textContent = gesture.name || _t('Жест');
     });
   }
 
   function _formatTimeUntil(ms) {
     if (!Number.isFinite(ms)) return '—';
-    if (ms <= 120) return 'сейчас';
-    if (ms < 1000) return `${Math.round(ms)} мс`;
-    return `${(ms / 1000).toFixed(1)} с`;
+    if (ms <= 120) return _t('сейчас');
+    if (ms < 1000) return _t`${Math.round(ms)} мс`;
+    return _t`${(ms / 1000).toFixed(1)} с`;
   }
 
   function _findNextTile(currentMs) {
@@ -213,7 +217,7 @@ const Game = (() => {
     if (!tile) {
       _assist.next?.style.setProperty('--next-color', 'var(--violet)');
       if (_assist.nextEmoji) _setGestureVisual(_assist.nextEmoji, null);
-      if (_assist.nextName) _assist.nextName.textContent = 'Ждите плитку';
+      if (_assist.nextName) _assist.nextName.textContent = _t('Ждите плитку');
       if (_assist.nextMeta) _assist.nextMeta.textContent = '—';
       _assist.recipeChips.forEach(chip => chip.classList.remove('needed'));
       return;
@@ -221,13 +225,13 @@ const Game = (() => {
 
     const gesture = _gestureForLane(tile.lane);
     const color = gesture.color || _laneColor(tile.lane);
-    const noteName = tile.noteName || gesture.name || 'Жест';
+    const noteName = tile.noteName || gesture.name || _t('Жест');
     const timeText = _formatTimeUntil(tile.time - currentMs);
     const meta = [noteName, gesture.keys, timeText].filter(Boolean).join(' · ');
 
     _assist.next?.style.setProperty('--next-color', color);
     if (_assist.nextEmoji) _setGestureVisual(_assist.nextEmoji, gesture);
-    if (_assist.nextName) _assist.nextName.textContent = gesture.name || 'Жест';
+    if (_assist.nextName) _assist.nextName.textContent = gesture.name || _t('Жест');
     if (_assist.nextMeta) _assist.nextMeta.textContent = meta;
 
     const pattern = gesture.pattern || [0, 0, 0, 0, 0];
@@ -247,7 +251,7 @@ const Game = (() => {
     _lastSensorSignature = signature;
 
     if (_assist.currentGesture) {
-      _assist.currentGesture.textContent = `${gesture.emoji || '—'} ${gesture.name || 'Нет жеста'}`;
+      _assist.currentGesture.textContent = `${gesture.emoji || '—'} ${gesture.name || _t('Нет жеста')}`;
     }
 
     values.forEach((value, i) => {
@@ -542,7 +546,7 @@ const Game = (() => {
       _ctx.textAlign = 'center';
       _ctx.shadowColor = _ctx.fillStyle;
       _ctx.shadowBlur  = 8 * dpr;
-      _ctx.fillText(f.label, lx, ly);
+      _ctx.fillText(_t(f.label), lx, ly);
       _ctx.font = `${10 * dpr}px Consolas, "Courier New", monospace`;
       _ctx.fillText(`+${f.points}`, lx, ly + 15 * dpr);
       _ctx.restore();
