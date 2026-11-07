@@ -559,7 +559,7 @@ const Game = (() => {
     if (Gestures.setActiveGestureIds) Gestures.setActiveGestureIds(song.gestureIds || null);
     (song.notes || []).forEach(note => { delete note.resultRecorded; });
     _song      = song;
-    _sessionApproachTime = _boundedNumber(song.approachTimeMs, _approachTime, 1000, 5000);
+    _sessionApproachTime = _boundedNumber(song.approachTimeMs, _approachTime, 700, 11200);
     _sessionWindow = _boundedNumber(song.hitWindowMs, _window, 100, 500);
     _noteIndex = 0;
     _tiles     = [];
@@ -583,7 +583,6 @@ const Game = (() => {
       onError: () => {
         if (audioStatus) audioStatus.textContent = _t('Фоновое аудио недоступно.');
       },
-      onNote: () => {},
       onEnd:  () => {
         _active = false;
         const result = GameResults.finalizeSession(_resultSession, {

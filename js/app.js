@@ -25,7 +25,7 @@ const App = (() => {
       }
       _stopPreview?.();
       status.textContent = '';
-      player = AudioPlayer.play({ ...getAudio(), notes: [], durationMs: 12000, audioLoop: false }, {
+      player = AudioPlayer.play({ ...getAudio(), durationMs: 12000, audioLoop: false }, {
         onEnd: stop,
         stopAtTrackEnd: true,
         onError() {
@@ -116,6 +116,7 @@ const App = (() => {
         preview.setAttribute('aria-label', _t`Прослушивание: ${preset.name}`);
         _bindPreview(preview, error, () => ({
           audioUrl: preset.audioUrl,
+          trackDurationMs: preset.trackDurationMs,
           audioRhythm: preset.rhythm ? { bpm: preset.defaultBpm, anchorMs: 0 } : null,
         }));
         button.addEventListener('click', () => {
@@ -239,7 +240,7 @@ const App = (() => {
       volumeValue.textContent = `${volumeInput.value}%`;
     });
 
-    for (const channel of ['music', 'cues']) {
+    for (const channel of ['music']) {
       const slider = document.getElementById('settings-' + channel);
       const output = document.getElementById('settings-' + channel + '-value');
       if (!slider || !output) continue;

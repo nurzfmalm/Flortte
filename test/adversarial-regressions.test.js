@@ -166,18 +166,20 @@ async function run() {
     const AudioPlayer = readGlobal(context, 'AudioPlayer');
     assert.equal(AudioPlayer.getVolume(), 1, 'A2 clamps persisted volume');
     const player = AudioPlayer.play({
-      audioUrl: 'song.mp3', durationMs: 6000, trackDurationMs: 4000,
+      audioUrl: 'song.mp3', durationMs: 6000, trackDurationMs: 4000, playbackRate: 2, playbackLeadMs: 500,
       notes: [1000, 2000, 4250].map(time => ({ time, note: 60, duration: 160 })),
     });
     wallTime = 1800;
     media.currentTime = 0.999;
     frame();
-    assert.equal(player.currentMs, 999);
+    frame();
+    assert.equal(media.playbackRate, 2);
+    assert.equal(player.currentMs, 999.5);
     assert.equal(cueCount, 0, 'Never sound the tile before it reaches the hit line');
     media.currentTime = 1;
     frame();
     frame();
-    assert.equal(cueCount, 1, 'Sound the tile once when the media reaches its beat');
+    assert.equal(cueCount, 0, 'Tiles are silent even when crossing a beat');
 
     player.pause();
     wallTime += 10000;
@@ -185,16 +187,16 @@ async function run() {
     assert.equal(frame, null);
     player.resume();
     frame();
-    assert.equal(cueCount, 1, 'Resuming does not replay an already crossed beat');
+    assert.equal(cueCount, 0, 'Resuming leaves tiles silent');
     media.currentTime = 2;
     frame();
-    assert.equal(cueCount, 2);
+    assert.equal(cueCount, 0);
     media.currentTime = 3.999;
     frame();
     media.currentTime = 0.25;
     frame();
-    assert.equal(player.currentMs, 4250, 'Native looping continues on the next beat cycle');
-    assert.equal(cueCount, 3);
+    assert.equal(player.currentMs, 2625, 'Looping preserves the scaled audio clock');
+    assert.equal(cueCount, 0);
     player.stop();
   }
 

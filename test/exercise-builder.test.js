@@ -72,26 +72,34 @@ assert.strictEqual(session.preserveLanes, true);
 assert.deepStrictEqual(Array.from(session.gestureIds), ['thumb', 'pair']);
 assert.strictEqual(session.notes.length, 8);
 assert.strictEqual(session.notes[0].time, 3500);
-assert.strictEqual(session.notes[1].time - session.notes[0].time, 1000);
+assert.strictEqual(Math.round(session.notes[1].time - session.notes[0].time), 1071);
 assert.strictEqual(session.approachTimeMs, 3000);
 assert.strictEqual(session.hitWindowMs, 220);
 assert.strictEqual(session.audioUrl, null);
-assert.strictEqual(session.exercise.bpm, 60);
+assert.strictEqual(session.exercise.bpm, 56);
 assert.strictEqual(session.exercise.seed, 12345);
 
 const recorded = context.ExerciseBuilder.createSession({
-  ...basePlan, audioId: 'blue-tractor', audioLoop: false, actionCount: 200,
+  ...basePlan, bpm: 96, fallDurationMs: 2800, audioId: 'blue-tractor', audioLoop: false, actionCount: 200,
 }, catalogue);
 assert.strictEqual(recorded.exercise.bpm, 96, 'A recording keeps its native tempo');
-assert.strictEqual(recorded.notes[0].time, 3750);
+assert.strictEqual(recorded.notes[0].time, 5794);
 assert.strictEqual(recorded.notes[1].time - recorded.notes[0].time, 625);
-assert.ok(recorded.notes.at(-1).time < recorded.trackDurationMs);
+assert.ok(recorded.notes.at(-1).time < recorded.playbackLeadMs + recorded.trackDurationMs);
 assert.strictEqual(recorded.exercise.actionCount, recorded.notes.length);
 const repeated = context.ExerciseBuilder.createSession({
-  ...basePlan, audioId: 'blue-tractor', audioLoop: true, actionCount: 200,
+  ...basePlan, bpm: 96, fallDurationMs: 2800, audioId: 'blue-tractor', audioLoop: true, actionCount: 200,
 }, catalogue);
 assert.strictEqual(repeated.notes.length, 200);
-assert.strictEqual(repeated.notes[recorded.notes.length].time, repeated.trackDurationMs);
+assert.strictEqual(repeated.notes[recorded.notes.length].time, repeated.trackDurationMs + repeated.notes[0].time);
+const faster = context.ExerciseBuilder.createSession({
+  ...basePlan, audioId: 'blue-tractor', bpm: 144, fallDurationMs: 1400,
+}, catalogue);
+assert.equal(faster.playbackRate, 3);
+assert.equal(faster.exercise.bpm, 288);
+assert.ok(Math.abs(faster.approachTimeMs * 3 - recorded.approachTimeMs) < 0.001);
+assert.ok(Math.abs((faster.notes[1].time - faster.notes[0].time) * 3 - 625) < 0.001);
+assert.ok(Math.abs((faster.notes[0].time - faster.playbackLeadMs) * 3 - 2494) < 0.001);
 const potter = context.ExerciseBuilder.createSession({ ...basePlan, audioId: 'potter' }, catalogue);
 assert.notStrictEqual(potter.notes[1].time - potter.notes[0].time, potter.notes[2].time - potter.notes[1].time);
 assert.strictEqual(context.ExerciseBuilder.createQuickTraining('monkeys', catalogue).exercise.bpm, 144);
