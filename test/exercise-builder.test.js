@@ -24,6 +24,7 @@ const normalized = context.ExerciseBuilder.normalizePlan({
   name: '  Индивидуальная  ',
   gestureIds: ['pair', 'missing', 'thumb', 'pair'],
   bpm: 500,
+  audioId: 'none',
   fallDurationMs: 200,
   hitWindowMs: 900,
   actionCount: 2,
@@ -47,7 +48,7 @@ const basePlan = {
   hitWindowMs: 220,
   actionCount: 8,
   generationMode: 'balanced',
-  audioId: 'potter',
+  audioId: 'none',
   seed: 12345,
 };
 const firstSequence = context.ExerciseBuilder.generateGestureIds(basePlan, catalogue);
@@ -74,9 +75,26 @@ assert.strictEqual(session.notes[0].time, 3500);
 assert.strictEqual(session.notes[1].time - session.notes[0].time, 1000);
 assert.strictEqual(session.approachTimeMs, 3000);
 assert.strictEqual(session.hitWindowMs, 220);
-assert.strictEqual(session.audioUrl, 'assets/audio/potter.mp3');
+assert.strictEqual(session.audioUrl, null);
 assert.strictEqual(session.exercise.bpm, 60);
 assert.strictEqual(session.exercise.seed, 12345);
+
+const recorded = context.ExerciseBuilder.createSession({
+  ...basePlan, audioId: 'blue-tractor', audioLoop: false, actionCount: 200,
+}, catalogue);
+assert.strictEqual(recorded.exercise.bpm, 96, 'A recording keeps its native tempo');
+assert.strictEqual(recorded.notes[0].time, 3750);
+assert.strictEqual(recorded.notes[1].time - recorded.notes[0].time, 625);
+assert.ok(recorded.notes.at(-1).time < recorded.trackDurationMs);
+assert.strictEqual(recorded.exercise.actionCount, recorded.notes.length);
+const repeated = context.ExerciseBuilder.createSession({
+  ...basePlan, audioId: 'blue-tractor', audioLoop: true, actionCount: 200,
+}, catalogue);
+assert.strictEqual(repeated.notes.length, 200);
+assert.strictEqual(repeated.notes[recorded.notes.length].time, repeated.trackDurationMs);
+const potter = context.ExerciseBuilder.createSession({ ...basePlan, audioId: 'potter' }, catalogue);
+assert.notStrictEqual(potter.notes[1].time - potter.notes[0].time, potter.notes[2].time - potter.notes[1].time);
+assert.strictEqual(context.ExerciseBuilder.createQuickTraining('monkeys', catalogue).exercise.bpm, 144);
 
 const fistTargets = context.ExerciseBuilder.targetFingerIndexes({ gestureIds: ['fist'] }, catalogue);
 assert.deepStrictEqual(Array.from(fistTargets), [0, 1, 2, 3, 4]);
