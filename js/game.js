@@ -215,7 +215,7 @@ const Game = (() => {
     _lastNextSignature = signature;
 
     if (!tile) {
-      _assist.next?.style.setProperty('--next-color', 'var(--violet)');
+      _assist.next?.style.setProperty('--next-color', 'var(--accent)');
       if (_assist.nextEmoji) _setGestureVisual(_assist.nextEmoji, null);
       if (_assist.nextName) _assist.nextName.textContent = _t('Ждите плитку');
       if (_assist.nextMeta) _assist.nextMeta.textContent = '—';
@@ -445,7 +445,7 @@ const Game = (() => {
     const hitY  = H * HIT_ZONE_Y;
 
     // Lane separators
-    _ctx.strokeStyle = '#252b3d';
+    _ctx.strokeStyle = '#543f4b';
     _ctx.lineWidth = 1;
     for (let l = 1; l < laneCount; l++) {
       _ctx.beginPath();

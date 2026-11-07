@@ -300,8 +300,7 @@ const ExerciseBuilder = (() => {
       card.type = 'button';
       card.className = 'exercise-music-card';
       card.dataset.audioId = preset.id;
-      card.innerHTML = '<span class="exercise-music-icon"></span><span><strong></strong><small></small></span><span class="exercise-music-check">✓</span>';
-      card.querySelector('.exercise-music-icon').textContent = preset.emoji;
+      card.innerHTML = '<span class="exercise-music-icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 18V6l11-2v12M9 18a3 2 0 1 1-3-2c1.7 0 3 .9 3 2Zm11-2a3 2 0 1 1-3-2c1.7 0 3 .9 3 2Z"/></svg></span><span><strong></strong><small></small></span><span class="exercise-music-check">✓</span>';
       card.querySelector('strong').textContent = preset.name;
       card.querySelector('small').textContent = preset.description;
       card.addEventListener('click', () => {

@@ -37,7 +37,7 @@ const App = (() => {
       const values = [sensors.keyPinch, sensors.indexThumb, sensors.middleThumb, sensors.ring, sensors.little];
       values.forEach((value, index) => {
         const numeric = Number(value);
-        const percent = Number.isFinite(numeric) ? Math.max(0, Math.min(100, numeric / max * 100)) : 0;
+        const percent = status === 'connected' && Number.isFinite(numeric) ? Math.max(0, Math.min(100, numeric / max * 100)) : 0;
         if (fills[index]) fills[index].style.width = `${percent.toFixed(1)}%`;
       });
       dot.className = `esp-dot${status === 'connected' ? ' connected' : status === 'error' ? ' error' : ''}`;
@@ -59,20 +59,20 @@ const App = (() => {
       .forEach((preset) => {
         const card = document.createElement('section');
         card.className = 'song-card quick-training-card';
-        card.innerHTML = _t`
+        card.innerHTML = `
           <div class="song-card-main">
-            <div class="song-thumb"></div>
+            <div class="song-thumb"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 18V6l11-2v12M9 18a3 2 0 1 1-3-2c1.7 0 3 .9 3 2Zm11-2a3 2 0 1 1-3-2c1.7 0 3 .9 3 2Z"/></svg></div>
             <div class="song-info">
               <div class="song-title"></div>
               <div class="song-meta"></div>
             </div>
-            <button class="btn-primary song-play-button" type="button">Начать</button>
+            <button class="btn-primary song-play-button" type="button"></button>
           </div>
           <p class="song-card-error" role="alert"></p>`;
-        card.querySelector('.song-thumb').textContent = preset.emoji;
         card.querySelector('.song-title').textContent = preset.name;
         card.querySelector('.song-meta').textContent = _t`30 жестов · ${preset.defaultBpm} BPM · сбалансированный набор`;
         const button = card.querySelector('.song-play-button');
+        button.textContent = _t('Начать');
         const error = card.querySelector('.song-card-error');
         button.addEventListener('click', () => {
           error.textContent = '';
@@ -96,21 +96,29 @@ const App = (() => {
     const subtitle = document.getElementById('overlay-sub');
     const button = document.getElementById('overlay-btn');
     const secondary = document.getElementById('overlay-secondary-btn');
+    const exit = document.getElementById('game-back');
+    const dismiss = () => {
+      overlay.classList.add('hidden');
+      exit.inert = false;
+      exit.focus();
+    };
 
     titleElement.textContent = title;
     subtitle.textContent = sub;
     button.textContent = buttonText;
     overlay.classList.remove('hidden');
+    exit.inert = true;
     button.onclick = () => {
-      overlay.classList.add('hidden');
+      dismiss();
       if (onButton) onButton();
     };
     secondary.textContent = secondaryText;
     secondary.classList.toggle('hidden', !secondaryText);
     secondary.onclick = secondaryText ? () => {
-      overlay.classList.add('hidden');
+      dismiss();
       if (onSecondary) onSecondary();
     } : null;
+    button.focus();
   }
 
   function _bindGameHud() {
@@ -216,7 +224,13 @@ const App = (() => {
 
   function _wireNav() {
     const nav = (buttonId, target) => {
-      document.getElementById(buttonId)?.addEventListener('click', () => showScreen(target));
+      document.getElementById(buttonId)?.addEventListener('click', () => {
+        showScreen(target);
+        const nextControl = target === 'home'
+          ? document.getElementById('btn-play')
+          : document.querySelector('#screen-' + target + ' .btn-back');
+        nextControl?.focus();
+      });
     };
     nav('btn-play', 'songs');
     nav('btn-exercise', 'exercise');
