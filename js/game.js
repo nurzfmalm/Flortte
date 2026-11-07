@@ -358,6 +358,7 @@ const Game = (() => {
 
     if (best) {
       best.hit = true;
+      if (Number.isFinite(best.note)) AudioPlayer.noteOn?.(best.note);
       const accuracy = bestDist < 60  ? 'PERFECT'
                      : bestDist < 120 ? 'GOOD'
                      :                  'OK';
@@ -577,7 +578,12 @@ const Game = (() => {
     _syncLaneKeys();
     _resize();
 
+    const audioStatus = document.getElementById('game-audio-status');
+    if (audioStatus) audioStatus.textContent = '';
     _playCtl = AudioPlayer.play(song, {
+      onError: () => {
+        if (audioStatus) audioStatus.textContent = _t('Фоновое аудио недоступно.');
+      },
       onNote: () => {},
       onEnd:  () => {
         _active = false;
