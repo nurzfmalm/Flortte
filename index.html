@@ -13,55 +13,59 @@
 
   <!-- HOME -->
   <div id="screen-home" class="screen active">
-    <div class="home-bg">
-      <div class="home-orb orb-1"></div>
-      <div class="home-orb orb-2"></div>
-      <div class="home-orb orb-3"></div>
-    </div>
     <div class="home-content">
-      <div class="home-logo">
-        <span class="logo-f">F</span><span class="logo-rest">lortte</span>
-      </div>
-      <p class="home-sub">by Orchid</p>
-      <label class="language-picker"><span>Язык</span>
+      <header class="home-toolbar">
+        <span class="home-wordmark">Flortte</span>
+        <label class="language-picker"><span>Язык</span>
         <select class="language-select" aria-label="Язык"><option value="ru">Русский</option><option value="kk">Қазақша</option></select>
       </label>
-
-      <div class="gesture-preview">
-        <div class="gp-sensor" id="hp-s0">
-          <span class="gp-label">БОЛЬШОЙ</span>
-          <div class="gp-bar"><div class="gp-fill" id="hp-f0"></div></div>
+      </header>
+      <section class="home-hero" aria-labelledby="home-title">
+        <div class="home-hero-copy">
+          <p class="home-sub">by Orchid</p>
+          <h1 class="home-logo" id="home-title">Flortte</h1>
         </div>
-        <div class="gp-sensor" id="hp-s1">
-          <span class="gp-label">УКАЗАТЕЛЬНЫЙ</span>
-          <div class="gp-bar"><div class="gp-fill" id="hp-f1"></div></div>
+        <div class="hero-keys" aria-hidden="true">
+          <span></span><span></span><span></span><span></span><span></span>
         </div>
-        <div class="gp-sensor" id="hp-s2">
-          <span class="gp-label">СРЕДНИЙ</span>
-          <div class="gp-bar"><div class="gp-fill" id="hp-f2"></div></div>
-        </div>
-        <div class="gp-sensor" id="hp-s3">
-          <span class="gp-label">БЕЗЫМЯННЫЙ</span>
-          <div class="gp-bar"><div class="gp-fill" id="hp-f3"></div></div>
-        </div>
-        <div class="gp-sensor" id="hp-s4">
-          <span class="gp-label">МИЗИНЕЦ</span>
-          <div class="gp-bar"><div class="gp-fill" id="hp-f4"></div></div>
-        </div>
-      </div>
-
-      <div class="esp-status-row">
-        <div class="esp-dot" id="esp-dot"></div>
-        <span id="esp-status-label">Bluetooth не подключён</span>
-      </div>
-      <button class="btn-secondary small" id="btn-bluetooth-connect">Подключить FlortteGlove</button>
-
+      </section>
       <div class="home-actions">
-        <button class="btn-primary" id="btn-play">▶ Быстрая тренировка</button>
-        <button class="btn-secondary" id="btn-exercise">✋ Создать тренировку</button>
-        <button class="btn-secondary" id="btn-diag">⊞ Диагностика</button>
-        <button class="btn-ghost" id="btn-settings">⚙ Настройки</button>
+        <button class="btn-primary" id="btn-play"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 5l12 7-12 7z"/></svg><span>Быстрая тренировка</span></button>
+        <button class="btn-secondary" id="btn-exercise"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span>Создать тренировку</span></button>
+        <button class="btn-secondary" id="btn-diag"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg><span>Диагностика</span></button>
+        <button class="btn-ghost" id="btn-settings"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M4 17h16M9 4v6m6 4v6"/></svg><span>Настройки</span></button>
       </div>
+      <section class="home-device" aria-labelledby="home-device-title">
+        <h2 id="home-device-title">FlortteGlove</h2>
+        <div class="esp-status-row" role="status">
+          <div class="esp-dot" id="esp-dot"></div>
+          <span id="esp-status-label">Bluetooth не подключён</span>
+        </div>
+        <button class="btn-secondary small" id="btn-bluetooth-connect">Подключить FlortteGlove</button>
+        <div class="gesture-preview">
+          <div class="gp-sensor" id="hp-s0">
+            <span class="gp-label">БОЛЬШОЙ</span>
+            <div class="gp-bar"><div class="gp-fill" id="hp-f0"></div></div>
+          </div>
+          <div class="gp-sensor" id="hp-s1">
+            <span class="gp-label">УКАЗАТЕЛЬНЫЙ</span>
+            <div class="gp-bar"><div class="gp-fill" id="hp-f1"></div></div>
+          </div>
+          <div class="gp-sensor" id="hp-s2">
+            <span class="gp-label">СРЕДНИЙ</span>
+            <div class="gp-bar"><div class="gp-fill" id="hp-f2"></div></div>
+          </div>
+          <div class="gp-sensor" id="hp-s3">
+            <span class="gp-label">БЕЗЫМЯННЫЙ</span>
+            <div class="gp-bar"><div class="gp-fill" id="hp-f3"></div></div>
+          </div>
+          <div class="gp-sensor" id="hp-s4">
+            <span class="gp-label">МИЗИНЕЦ</span>
+            <div class="gp-bar"><div class="gp-fill" id="hp-f4"></div></div>
+          </div>
+        </div>
+      </section>
+
     </div>
   </div>
 
@@ -328,7 +332,7 @@
       </div>
     </div>
 
-    <div class="game-overlay hidden" id="game-overlay">
+    <div class="game-overlay hidden" id="game-overlay" role="dialog" aria-modal="true" aria-labelledby="overlay-title" aria-describedby="overlay-sub">
       <div class="overlay-card">
         <div class="overlay-title" id="overlay-title">Готов?</div>
         <div class="overlay-sub" id="overlay-sub"></div>

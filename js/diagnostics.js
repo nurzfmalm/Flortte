@@ -368,7 +368,7 @@ const Diagnostics = (() => {
     const height = _canvas.height;
     const dpr = devicePixelRatio;
     _ctx2d.clearRect(0, 0, width, height);
-    _ctx2d.strokeStyle = '#dbe3f5';
+    _ctx2d.strokeStyle = '#dfcbbb';
     _ctx2d.lineWidth = 1;
     for (let grid = 0; grid <= 4; grid++) {
       const y = height * (1 - grid / 4);
@@ -376,7 +376,7 @@ const Diagnostics = (() => {
       _ctx2d.moveTo(0, y);
       _ctx2d.lineTo(width, y);
       _ctx2d.stroke();
-      _ctx2d.fillStyle = '#77839b';
+      _ctx2d.fillStyle = '#6d554c';
       _ctx2d.font = `${10 * dpr}px Consolas, "Courier New", monospace`;
       _ctx2d.fillText(Math.round((grid / 4) * MAX_ADC), 4 * dpr, y - 3 * dpr);
     }
