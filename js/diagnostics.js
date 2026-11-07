@@ -8,6 +8,8 @@ const Diagnostics = (() => {
   const OPEN_CAPTURE_MS = 2500;
   const PREPARE_MS = 2000;
   const FINGER_CAPTURE_MS = 5000;
+  let graphRule;
+  let graphInk;
   const COLORS = ['#7c3aed', '#22d3a0', '#f59e0b', '#38bdf8', '#f472b6'];
   const SENSOR_KEYS = ['keyPinch', 'indexThumb', 'middleThumb', 'ring', 'little'];
   const SENSOR_LABELS = [_t('Большой'), _t('Указательный'), _t('Средний'), _t('Безымянный'), _t('Мизинец')];
@@ -359,7 +361,12 @@ const Diagnostics = (() => {
       _dcg[index].textContent = active ? _t('● АКТИВЕН') : '';
       _dcg[index].style.color = active ? COLORS[index] : '';
     });
-    if (_statusDot) _statusDot.classList.toggle('on', status === 'connected');
+    if (_statusDot) {
+      const connected = status === 'connected';
+      const label = connected ? _t('Перчатка FlortteGlove подключена') : _t('Bluetooth не подключён');
+      _statusDot.classList.toggle('on', connected);
+      if (_statusDot.textContent !== label) _statusDot.textContent = label;
+    }
   }
 
   function _drawGraph() {
@@ -368,7 +375,7 @@ const Diagnostics = (() => {
     const height = _canvas.height;
     const dpr = devicePixelRatio;
     _ctx2d.clearRect(0, 0, width, height);
-    _ctx2d.strokeStyle = '#dfcbbb';
+    _ctx2d.strokeStyle = graphRule;
     _ctx2d.lineWidth = 1;
     for (let grid = 0; grid <= 4; grid++) {
       const y = height * (1 - grid / 4);
@@ -376,7 +383,7 @@ const Diagnostics = (() => {
       _ctx2d.moveTo(0, y);
       _ctx2d.lineTo(width, y);
       _ctx2d.stroke();
-      _ctx2d.fillStyle = '#6d554c';
+      _ctx2d.fillStyle = graphInk;
       _ctx2d.font = `${10 * dpr}px Consolas, "Courier New", monospace`;
       _ctx2d.fillText(Math.round((grid / 4) * MAX_ADC), 4 * dpr, y - 3 * dpr);
     }
@@ -544,6 +551,9 @@ const Diagnostics = (() => {
   }
 
   function enter() {
+    const theme = getComputedStyle(document.documentElement);
+    graphRule = theme.getPropertyValue('--border').trim();
+    graphInk = theme.getPropertyValue('--text-2').trim();
     _active = true;
     _renderPlayerResults();
     _resize();

@@ -1,154 +1,244 @@
-/** Audio playback and generated note feedback for Flortte training sessions. */
+/** Playback, the training clock, and the two audio channels. */
 const AudioPlayer = (() => {
-  const DEFAULT_VOLUME = 0.8;
-  let _ctx = null;
-  let _masterGain = null;
-  let _activeAudio = null;
+  let context;
+  let active;
+  let activeMusic;
+  let volume = readLevel('volume', 0.8);
+  const mix = {
+    music: readLevel('flortte_music_volume', 0.75),
+    cues: readLevel('flortte_cues_volume', 0.55),
+  };
+  const voices = { music: new Set(), cues: new Set() };
+  const gains = {};
+  const melody = [60, 64, 67, 64, 62, 65, 69, 65, 64, 67, 72, 67, 62, 65, 67, 71];
+  const bass = [48, 53, 45, 55];
 
-  function _normalizeVolume(value, fallback = 0) {
-    const numeric = Number(value);
-    return Number.isFinite(numeric) ? Math.max(0, Math.min(1, numeric)) : fallback;
+  function normalizeLevel(value, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.max(0, Math.min(1, number)) : fallback;
   }
 
-  function _readVolume() {
+  function readLevel(key, fallback) {
     try {
-      const saved = localStorage.getItem('volume');
-      return saved === null ? DEFAULT_VOLUME : _normalizeVolume(saved, DEFAULT_VOLUME);
+      const saved = localStorage.getItem(key);
+      return saved === null ? fallback : normalizeLevel(saved, fallback);
     } catch (_) {
-      return DEFAULT_VOLUME;
+      return fallback;
     }
   }
 
-  let _volume = _readVolume();
-
-  function _ensureCtx() {
-    if (_ctx) return;
-    _ctx = new (window.AudioContext || window.webkitAudioContext)();
-    _masterGain = _ctx.createGain();
-    _masterGain.gain.value = _volume;
-    _masterGain.connect(_ctx.destination);
+  function saveLevel(key, value) {
+    try { localStorage.setItem(key, value); } catch (_) {}
   }
 
-  function _playNote(note, velocity = 80, durationMs = 320) {
-    _ensureCtx();
-    const frequency = 440 * Math.pow(2, (note - 69) / 12);
-    const gain = _ctx.createGain();
-    const oscillator = _ctx.createOscillator();
-    const now = _ctx.currentTime;
-    const peak = Math.max(0.03, Math.min(0.45, velocity / 260));
+  function applyMix() {
+    for (const channel of Object.keys(gains)) {
+      gains[channel].gain.value = volume * mix[channel];
+    }
+    if (activeMusic) activeMusic.volume = volume * mix.music;
+  }
 
-    oscillator.type = 'triangle';
-    oscillator.frequency.value = frequency;
+  function resumeCtx() {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    if (!context) {
+      context = new AudioContext();
+      for (const channel of Object.keys(mix)) {
+        gains[channel] = context.createGain();
+        gains[channel].connect(context.destination);
+      }
+      applyMix();
+    }
+    if (context.state === 'suspended') context.resume().catch(() => {});
+  }
+
+  function tone(channel, note, peak, duration, start = context?.currentTime) {
+    if (!context || context.state !== 'running') return;
+    const gain = context.createGain();
+    const oscillator = context.createOscillator();
+    oscillator.type = channel === 'cues' ? 'triangle' : 'sine';
+    oscillator.frequency.value = 440 * Math.pow(2, (note - 69) / 12);
     oscillator.connect(gain);
-    gain.connect(_masterGain);
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(peak, now + 0.012);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + durationMs / 1000);
-    oscillator.start(now);
-    oscillator.stop(now + durationMs / 1000 + 0.03);
+    gain.connect(gains[channel]);
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(peak, start + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+    voices[channel].add(oscillator);
+    oscillator.onended = () => {
+      voices[channel].delete(oscillator);
+      oscillator.disconnect();
+      gain.disconnect();
+    };
+    oscillator.start(start);
+    oscillator.stop(start + duration);
   }
 
-  function play(session, { onNote, onEnd, startAt = 0 } = {}) {
-    _ensureCtx();
-    if (_ctx.state === 'suspended') _ctx.resume();
+  function silence() {
+    for (const channel of Object.values(voices)) {
+      for (const oscillator of channel) oscillator.stop();
+      channel.clear();
+    }
+  }
+
+  function play(session, { onNote, onEnd, onError, stopAtTrackEnd = false, startAt = 0 } = {}) {
+    active?.stop();
+    resumeCtx();
 
     let paused = false;
     let stopped = false;
-    let startWallTime = performance.now();
-    let offsetMs = Math.max(0, Number(startAt) || 0);
-    let raf = null;
-    let noteIndex = session.notes.findIndex(note => note.time >= offsetMs);
+    let raf;
+    let audioFailed = false;
+    let playAttempt = 0;
+    let wallTime = performance.now();
+    let offset = Math.max(0, Number(startAt) || 0);
+    let noteIndex = session.notes.findIndex(note => note.time >= offset);
     if (noteIndex < 0) noteIndex = session.notes.length;
 
     const audio = session.audioUrl ? new Audio(session.audioUrl) : null;
-    if (audio) {
-      audio.preload = 'auto';
-      audio.volume = _volume;
-      audio.loop = session.audioLoop !== false;
-      audio.currentTime = Math.max(0, Number(session.audioOffsetMs) || 0) / 1000;
-      audio.play().catch(() => {});
-      _activeAudio = audio;
+    const pulse = session.audioRhythm && 60000 / session.audioRhythm.bpm;
+    const firstBeat = pulse ? session.audioRhythm.anchorMs % pulse : 0;
+    const beatAt = time => Math.max(0, Math.ceil((time - firstBeat) / pulse));
+    let beat = beatAt(offset);
+
+    function failAudio() {
+      if (stopped || audioFailed) return;
+      audioFailed = true;
+      audio.pause();
+      onError?.();
+    }
+
+    function startAudio() {
+      if (!audio || audioFailed) return;
+      const attempt = ++playAttempt;
+      audio.play().catch(() => {
+        if (!paused && attempt === playAttempt) failAudio();
+      });
     }
 
     function currentMs() {
-      return paused
-        ? offsetMs
-        : (performance.now() - startWallTime) + offsetMs;
+      return paused || stopped ? offset : performance.now() - wallTime + offset;
+    }
+
+    function scheduleRhythm(elapsed) {
+      if (!pulse || context?.state !== 'running') return;
+      // Skip past beats after a stalled frame. Schedule the next beats on the audio clock.
+      beat = Math.max(beat, beatAt(elapsed - 35));
+      const beatsBeforeAnchor = Math.round((session.audioRhythm.anchorMs - firstBeat) / pulse);
+      while (firstBeat + beat * pulse <= Math.min(elapsed + 90, session.durationMs)) {
+        const start = context.currentTime + Math.max(0, (firstBeat + beat * pulse - elapsed) / 1000);
+        const phase = ((beat - beatsBeforeAnchor) % 16 + 16) % 16;
+        tone('music', melody[phase], 0.14, Math.min(0.38, pulse / 1400), start);
+        if (phase % 4 === 0) tone('music', bass[phase / 4], 0.21, 0.5, start);
+        beat++;
+      }
     }
 
     function tick() {
       if (paused || stopped) return;
       const elapsed = currentMs();
-
       while (noteIndex < session.notes.length && session.notes[noteIndex].time <= elapsed) {
-        const note = session.notes[noteIndex];
-        if (!audio) _playNote(note.note, note.velocity, note.duration);
-        if (onNote) onNote(note, elapsed);
-        noteIndex++;
+        const note = session.notes[noteIndex++];
+        if ((!audio || audioFailed) && !pulse && elapsed - note.time < 100) {
+          tone('cues', note.note, 0.22, Math.max(0.06, note.duration / 1000));
+        }
+        onNote?.(note, elapsed);
       }
-
       if (elapsed >= session.durationMs) {
-        stopped = true;
-        if (audio) audio.pause();
-        if (_activeAudio === audio) _activeAudio = null;
-        if (onEnd) onEnd();
+        controller.stop();
+        onEnd?.();
         return;
       }
-
+      scheduleRhythm(elapsed);
       raf = requestAnimationFrame(tick);
     }
 
-    raf = requestAnimationFrame(tick);
-
-    return {
+    const controller = {
       pause() {
         if (paused || stopped) return;
-        offsetMs = currentMs();
+        offset = currentMs();
         paused = true;
-        if (audio) audio.pause();
+        playAttempt++;
+        audio?.pause();
+        silence();
         cancelAnimationFrame(raf);
       },
       resume() {
         if (!paused || stopped) return;
         paused = false;
-        startWallTime = performance.now();
-        if (audio) audio.play().catch(() => {});
+        wallTime = performance.now();
+        beat = beatAt(offset);
+        resumeCtx();
+        startAudio();
         raf = requestAnimationFrame(tick);
       },
       stop() {
+        if (stopped) return;
+        controller.pause();
         stopped = true;
         if (audio) {
-          audio.pause();
-          audio.currentTime = 0;
+          audio.onerror = null;
+          audio.onended = null;
         }
-        if (_activeAudio === audio) _activeAudio = null;
-        cancelAnimationFrame(raf);
+        if (active === controller) {
+          active = null;
+          activeMusic = null;
+        }
       },
-      get currentMs() {
-        return currentMs();
-      },
+      get currentMs() { return currentMs(); },
     };
+
+    active = controller;
+    if (audio) {
+      audio.preload = 'auto';
+      audio.loop = session.audioLoop !== false;
+      audio.currentTime = Math.max(0, Number(session.audioOffsetMs) || 0) / 1000;
+      audio.onerror = failAudio;
+      if (stopAtTrackEnd) audio.onended = () => {
+        controller.stop();
+        onEnd?.();
+      };
+      activeMusic = audio;
+      applyMix();
+      startAudio();
+    }
+    raf = requestAnimationFrame(tick);
+    return controller;
   }
 
-  function noteOn(note, velocity = 100) {
-    _playNote(note, velocity, 300);
+  function validateFile(url) {
+    return new Promise(resolve => {
+      const audio = new Audio();
+      const done = valid => {
+        clearTimeout(timeout);
+        audio.onloadedmetadata = null;
+        audio.onerror = null;
+        audio.removeAttribute('src');
+        audio.load();
+        resolve(valid);
+      };
+      const timeout = setTimeout(() => done(false), 5000);
+      audio.preload = 'metadata';
+      audio.onloadedmetadata = () => done(Number.isFinite(audio.duration) && audio.duration > 0);
+      audio.onerror = () => done(false);
+      audio.src = url;
+    });
   }
 
   function setVolume(value) {
-    _volume = _normalizeVolume(value, 0);
-    try { localStorage.setItem('volume', _volume); } catch (_) {}
-    if (_masterGain) _masterGain.gain.value = _volume;
-    if (_activeAudio) _activeAudio.volume = _volume;
+    volume = normalizeLevel(value, volume);
+    saveLevel('volume', volume);
+    applyMix();
   }
 
-  function getVolume() {
-    return _volume;
+  function setMix(channel, value) {
+    mix[channel] = normalizeLevel(value, mix[channel]);
+    saveLevel('flortte_' + channel + '_volume', mix[channel]);
+    applyMix();
   }
 
-  function resumeCtx() {
-    _ensureCtx();
-    if (_ctx.state === 'suspended') _ctx.resume();
+  function noteOn(note) {
+    tone('cues', note, 0.27, 0.19);
   }
 
-  return { play, noteOn, setVolume, getVolume, resumeCtx };
+  return { play, noteOn, validateFile, setVolume, getVolume: () => volume, setMix, getMix: channel => mix[channel], resumeCtx };
 })();

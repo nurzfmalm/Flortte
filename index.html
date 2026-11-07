@@ -4,7 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' blob:" />
+  <meta name="description" content="Flortte by Orchid. Тренировка жестов и настройка перчатки FlortteGlove." />
   <title>Flortte by Orchid</title>
+  <script src="js/theme.js"></script>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -15,19 +17,21 @@
   <div id="screen-home" class="screen active">
     <div class="home-content">
       <header class="home-toolbar">
-        <span class="home-wordmark">Flortte</span>
+        <span class="home-wordmark">Flortte by Orchid</span>
+        <div class="home-preferences">
+        <label class="language-picker"><span>Тема</span>
+          <select class="theme-select"><option value="light">Светлая</option><option value="dark">Тёмная</option></select>
+        </label>
         <label class="language-picker"><span>Язык</span>
         <select class="language-select" aria-label="Язык"><option value="ru">Русский</option><option value="kk">Қазақша</option></select>
       </label>
+        </div>
       </header>
       <section class="home-hero" aria-labelledby="home-title">
         <div class="home-hero-copy">
-          <p class="home-sub">by Orchid</p>
-          <h1 class="home-logo" id="home-title">Flortte</h1>
+          <h1 class="home-logo" id="home-title">Тренировка жестов</h1>
         </div>
-        <div class="hero-keys" aria-hidden="true">
-          <span></span><span></span><span></span><span></span><span></span>
-        </div>
+        <img class="home-plate" src="assets/gestures/gesture-open-hand.jpeg" alt="" />
       </section>
       <div class="home-actions">
         <button class="btn-primary" id="btn-play"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 5l12 7-12 7z"/></svg><span>Быстрая тренировка</span></button>
@@ -38,29 +42,29 @@
       <section class="home-device" aria-labelledby="home-device-title">
         <h2 id="home-device-title">FlortteGlove</h2>
         <div class="esp-status-row" role="status">
-          <div class="esp-dot" id="esp-dot"></div>
+          <div class="esp-dot" id="esp-dot" hidden></div>
           <span id="esp-status-label">Bluetooth не подключён</span>
         </div>
         <button class="btn-secondary small" id="btn-bluetooth-connect">Подключить FlortteGlove</button>
         <div class="gesture-preview">
           <div class="gp-sensor" id="hp-s0">
-            <span class="gp-label">БОЛЬШОЙ</span>
+            <span class="gp-label">Большой</span>
             <div class="gp-bar"><div class="gp-fill" id="hp-f0"></div></div>
           </div>
           <div class="gp-sensor" id="hp-s1">
-            <span class="gp-label">УКАЗАТЕЛЬНЫЙ</span>
+            <span class="gp-label">Указательный</span>
             <div class="gp-bar"><div class="gp-fill" id="hp-f1"></div></div>
           </div>
           <div class="gp-sensor" id="hp-s2">
-            <span class="gp-label">СРЕДНИЙ</span>
+            <span class="gp-label">Средний</span>
             <div class="gp-bar"><div class="gp-fill" id="hp-f2"></div></div>
           </div>
           <div class="gp-sensor" id="hp-s3">
-            <span class="gp-label">БЕЗЫМЯННЫЙ</span>
+            <span class="gp-label">Безымянный</span>
             <div class="gp-bar"><div class="gp-fill" id="hp-f3"></div></div>
           </div>
           <div class="gp-sensor" id="hp-s4">
-            <span class="gp-label">МИЗИНЕЦ</span>
+            <span class="gp-label">Мизинец</span>
             <div class="gp-bar"><div class="gp-fill" id="hp-f4"></div></div>
           </div>
         </div>
@@ -72,7 +76,7 @@
   <!-- SONG SELECT -->
   <div id="screen-songs" class="screen">
     <div class="screen-header">
-      <button class="btn-back" id="songs-back">← Назад</button>
+      <button class="btn-back" id="songs-back">Назад</button>
       <div class="header-copy"><h2>Быстрая тренировка</h2><p>Выбери фоновое аудио. Жесты создадутся автоматически.</p></div>
     </div>
     <div class="song-list" id="song-list">
@@ -83,7 +87,7 @@
   <!-- EXERCISE BUILDER -->
   <div id="screen-exercise" class="screen">
     <div class="screen-header">
-      <button class="btn-back" id="exercise-back">← Назад</button>
+      <button class="btn-back" id="exercise-back">Назад</button>
       <div class="header-copy">
         <h2>Конструктор тренировки</h2>
         <p>Настрой жесты, ритм и время подготовки</p>
@@ -120,20 +124,25 @@
       <section class="exercise-panel exercise-music-panel">
         <div class="exercise-section-heading">
           <div><span class="exercise-step">3</span><h3>Фоновое аудио</h3></div>
-          <span class="exercise-save-state">Не управляет плитками</span>
+
         </div>
-        <p class="exercise-help">Плитки создаются генератором тренировки. Музыка играет независимо и повторяется до конца занятия.</p>
+        <p class="exercise-help">Встроенный ритм следует темпу упражнения. Аудиофайлы играют в своём темпе.</p>
         <div class="exercise-music-grid">
           <div class="exercise-audio-presets" id="exercise-audio-presets"></div>
           <div class="exercise-upload-card" id="exercise-upload-card">
             <div class="exercise-upload-heading">
-              <span class="exercise-music-icon">🎧</span>
+              <span class="exercise-music-icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 13v-1a8 8 0 0 1 16 0v1m-16 0h4v7H4zm12 0h4v7h-4z"/></svg></span>
               <span><strong>Свое аудио</strong><small>MP3, WAV, OGG, M4A или AAC</small></span>
             </div>
             <label class="file-pick"><span>Аудиофайл</span><input type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac" id="exercise-audio-input" /></label>
             <button class="btn-secondary" id="exercise-add-audio" type="button">Выбрать аудио</button>
             <p class="exercise-upload-error" id="exercise-upload-error" role="alert"></p>
           </div>
+        </div>
+        <div class="audio-controls">
+          <button class="btn-secondary" id="exercise-audio-preview" type="button">Послушать</button>
+          <label class="exercise-all-actions"><input type="checkbox" id="exercise-audio-loop" checked />Повторять аудиофайл</label>
+          <p class="audio-status" id="exercise-audio-status" role="status"></p>
         </div>
       </section>
 
@@ -228,9 +237,10 @@
   <div id="screen-game" class="screen">
     <div class="game-hud">
       <button class="btn-back small game-exit-button" id="game-back">Выйти</button>
-      <div class="hud-song-name" id="hud-song-name">—</div>
+      <div class="hud-song-name" id="hud-song-name">…</div>
+      <p class="audio-status" id="game-audio-status" role="status"></p>
       <div class="hud-score-wrap">
-        <span class="hud-score-label">ОЧКИ</span>
+        <span class="hud-score-label">Очки</span>
         <span class="hud-score" id="hud-score">0</span>
       </div>
       <div class="hud-combo-wrap">
@@ -240,12 +250,12 @@
 
     <div class="game-assist" id="game-assist">
       <div class="game-next" id="game-next">
-        <div class="game-assist-title">НУЖЕН ЖЕСТ</div>
+        <div class="game-assist-title">Нужен жест</div>
         <div class="game-next-main">
-          <span class="game-next-emoji" id="game-next-emoji">—</span>
+          <span class="game-next-emoji" id="game-next-emoji">…</span>
           <div class="game-next-copy">
             <span class="game-next-name" id="game-next-name">Ждите плитку</span>
-            <span class="game-next-meta" id="game-next-meta">—</span>
+            <span class="game-next-meta" id="game-next-meta">…</span>
           </div>
         </div>
         <div class="game-finger-recipe" id="game-finger-recipe">
@@ -258,39 +268,39 @@
       </div>
 
       <div class="game-live">
-        <div class="game-assist-title">ПАЛЬЦЫ</div>
+        <div class="game-assist-title">Пальцы</div>
     <div class="game-current" id="game-current-gesture">Кулак</div>
         <div class="game-finger-values">
           <div class="game-finger-meter" data-finger="0">
             <span class="game-finger-label">Большой</span>
-            <span class="game-finger-value" id="game-finger-value-0">—</span>
+            <span class="game-finger-value" id="game-finger-value-0">…</span>
             <div class="game-finger-bar"><div class="game-finger-fill" id="game-finger-fill-0"></div></div>
           </div>
           <div class="game-finger-meter" data-finger="1">
             <span class="game-finger-label">Указательный</span>
-            <span class="game-finger-value" id="game-finger-value-1">—</span>
+            <span class="game-finger-value" id="game-finger-value-1">…</span>
             <div class="game-finger-bar"><div class="game-finger-fill" id="game-finger-fill-1"></div></div>
           </div>
           <div class="game-finger-meter" data-finger="2">
             <span class="game-finger-label">Средний</span>
-            <span class="game-finger-value" id="game-finger-value-2">—</span>
+            <span class="game-finger-value" id="game-finger-value-2">…</span>
             <div class="game-finger-bar"><div class="game-finger-fill" id="game-finger-fill-2"></div></div>
           </div>
           <div class="game-finger-meter" data-finger="3">
             <span class="game-finger-label">Безымянный</span>
-            <span class="game-finger-value" id="game-finger-value-3">—</span>
+            <span class="game-finger-value" id="game-finger-value-3">…</span>
             <div class="game-finger-bar"><div class="game-finger-fill" id="game-finger-fill-3"></div></div>
           </div>
           <div class="game-finger-meter" data-finger="4">
             <span class="game-finger-label">Мизинец</span>
-            <span class="game-finger-value" id="game-finger-value-4">—</span>
+            <span class="game-finger-value" id="game-finger-value-4">…</span>
             <div class="game-finger-bar"><div class="game-finger-fill" id="game-finger-fill-4"></div></div>
           </div>
         </div>
       </div>
     </div>
 
-    <canvas id="game-canvas"></canvas>
+    <canvas id="game-canvas" aria-hidden="true"></canvas>
 
     <div class="piano-row" id="piano-row">
       <!-- 9 image-backed one-hand gesture lanes -->
@@ -347,40 +357,40 @@
   <!-- DIAGNOSTICS -->
   <div id="screen-diag" class="screen">
     <div class="screen-header">
-      <button class="btn-back" id="diag-back">← Назад</button>
+      <button class="btn-back" id="diag-back">Назад</button>
       <h2>Диагностика</h2>
-      <div class="diag-status" id="diag-status-dot"></div>
+      <div class="diag-status" id="diag-status-dot" role="status">Bluetooth не подключён</div>
     </div>
 
     <div class="diag-body">
       <div class="diag-cards">
         <div class="diag-card" id="dc-0">
-          <div class="dc-label">БОЛЬШОЙ</div>
-          <div class="dc-value" id="dcv-0">—</div>
+          <div class="dc-label">Большой</div>
+          <div class="dc-value" id="dcv-0">…</div>
           <div class="dc-bar"><div class="dc-fill" id="dcf-0"></div></div>
           <div class="dc-gesture" id="dcg-0"></div>
         </div>
         <div class="diag-card" id="dc-1">
-          <div class="dc-label">УКАЗАТЕЛЬНЫЙ</div>
-          <div class="dc-value" id="dcv-1">—</div>
+          <div class="dc-label">Указательный</div>
+          <div class="dc-value" id="dcv-1">…</div>
           <div class="dc-bar"><div class="dc-fill" id="dcf-1"></div></div>
           <div class="dc-gesture" id="dcg-1"></div>
         </div>
         <div class="diag-card" id="dc-2">
-          <div class="dc-label">СРЕДНИЙ</div>
-          <div class="dc-value" id="dcv-2">—</div>
+          <div class="dc-label">Средний</div>
+          <div class="dc-value" id="dcv-2">…</div>
           <div class="dc-bar"><div class="dc-fill" id="dcf-2"></div></div>
           <div class="dc-gesture" id="dcg-2"></div>
         </div>
         <div class="diag-card" id="dc-3">
-          <div class="dc-label">БЕЗЫМЯННЫЙ</div>
-          <div class="dc-value" id="dcv-3">—</div>
+          <div class="dc-label">Безымянный</div>
+          <div class="dc-value" id="dcv-3">…</div>
           <div class="dc-bar"><div class="dc-fill" id="dcf-3"></div></div>
           <div class="dc-gesture" id="dcg-3"></div>
         </div>
         <div class="diag-card" id="dc-4">
-          <div class="dc-label">МИЗИНЕЦ</div>
-          <div class="dc-value" id="dcv-4">—</div>
+          <div class="dc-label">Мизинец</div>
+          <div class="dc-value" id="dcv-4">…</div>
           <div class="dc-bar"><div class="dc-fill" id="dcf-4"></div></div>
           <div class="dc-gesture" id="dcg-4"></div>
         </div>
@@ -388,11 +398,11 @@
 
       <div class="diag-detected">
         <span class="dd-label">Жест:</span>
-        <span class="dd-value" id="dd-gesture">—</span>
+        <span class="dd-value" id="dd-gesture">…</span>
         <span class="dd-note" id="dd-note"></span>
       </div>
 
-      <canvas id="diag-canvas"></canvas>
+      <canvas id="diag-canvas" aria-hidden="true"></canvas>
 
       <section class="player-results" id="player-results">
         <div class="diagnostic-test-header">
@@ -432,12 +442,15 @@
   <!-- SETTINGS -->
   <div id="screen-settings" class="screen">
     <div class="screen-header">
-      <button class="btn-back" id="settings-back">← Назад</button>
+      <button class="btn-back" id="settings-back">Назад</button>
       <h2>Настройки</h2>
     </div>
     <div class="settings-body">
       <div class="setting-group glove-settings">
         <h3>Перчатка</h3>
+        <label class="language-picker"><span>Тема</span>
+          <select class="theme-select"><option value="light">Светлая</option><option value="dark">Тёмная</option></select>
+        </label>
         <label class="language-picker"><span>Язык</span>
           <select class="language-select" aria-label="Язык"><option value="ru">Русский</option><option value="kk">Қазақша</option></select>
         </label>
@@ -469,7 +482,7 @@
         </div>
         <div class="threshold-controls">
           <div class="threshold-title">Откалиброванные пороги пальцев</div>
-          <div class="threshold-hint">Сгибание и разгибание задаются числами 0–4095. Изменения сохраняются автоматически на этом компьютере.</div>
+          <div class="threshold-hint">Сгибание и разгибание задаются числами от 0 до 4095. Изменения сохраняются автоматически на этом компьютере.</div>
           <div class="threshold-row">
             <div class="threshold-finger">Большой</div>
             <label>
@@ -544,6 +557,8 @@
           <input type="text" inputmode="numeric" pattern="[0-9]*" id="settings-vol" value="80" />
           <span id="settings-vol-val">80%</span>
         </label>
+        <label><span>Громкость музыки</span><input type="range" id="settings-music" min="0" max="100" /><output for="settings-music" id="settings-music-value"></output></label>
+        <label><span>Громкость подсказок</span><input type="range" id="settings-cues" min="0" max="100" /><output for="settings-cues" id="settings-cues-value"></output></label>
       </div>
       <div class="setting-group">
         <h3>Маппинг жестов</h3>

@@ -6,8 +6,42 @@ const App = (() => {
       text + part + (index < values.length ? values[index] : ''), '');
   let _currentScreen = 'home';
   let _loadedSession = null;
+  let _stopPreview = null;
+
+  function _bindPreview(button, status, getAudio) {
+    function stop() {
+      if (_stopPreview !== stop) return;
+      player.stop();
+      _stopPreview = null;
+      button.textContent = _t('Послушать');
+      button.setAttribute('aria-pressed', 'false');
+    }
+    let player;
+    button.setAttribute('aria-pressed', 'false');
+    button.addEventListener('click', () => {
+      if (_stopPreview === stop) {
+        stop();
+        return;
+      }
+      _stopPreview?.();
+      status.textContent = '';
+      player = AudioPlayer.play({ ...getAudio(), notes: [], durationMs: 12000, audioLoop: false }, {
+        onEnd: stop,
+        stopAtTrackEnd: true,
+        onError() {
+          stop();
+          status.textContent = _t('Не удалось воспроизвести аудио.');
+        },
+      });
+      _stopPreview = stop;
+      button.textContent = _t('Остановить');
+      button.setAttribute('aria-pressed', 'true');
+    });
+    return stop;
+  }
 
   function showScreen(id) {
+    _stopPreview?.();
     if (_currentScreen === 'diag') Diagnostics.leave();
     if (_currentScreen === 'game') Game.pause();
 
@@ -66,14 +100,24 @@ const App = (() => {
               <div class="song-title"></div>
               <div class="song-meta"></div>
             </div>
-            <button class="btn-primary song-play-button" type="button"></button>
+            <div class="song-actions">
+              <button class="btn-secondary song-preview-button" type="button"></button>
+              <button class="btn-primary song-play-button" type="button"></button>
+            </div>
           </div>
           <p class="song-card-error" role="alert"></p>`;
         card.querySelector('.song-title').textContent = preset.name;
-        card.querySelector('.song-meta').textContent = _t`30 жестов · ${preset.defaultBpm} BPM · сбалансированный набор`;
+        card.querySelector('.song-meta').textContent = _t`30 жестов, ${preset.defaultBpm} BPM, сбалансированный набор`;
         const button = card.querySelector('.song-play-button');
         button.textContent = _t('Начать');
         const error = card.querySelector('.song-card-error');
+        const preview = card.querySelector('.song-preview-button');
+        preview.textContent = _t('Послушать');
+        preview.setAttribute('aria-label', _t`Прослушивание: ${preset.name}`);
+        _bindPreview(preview, error, () => ({
+          audioUrl: preset.audioUrl,
+          audioRhythm: preset.rhythm ? { bpm: preset.defaultBpm, anchorMs: 0 } : null,
+        }));
         button.addEventListener('click', () => {
           error.textContent = '';
           try {
@@ -194,6 +238,18 @@ const App = (() => {
       markNumber(volumeInput, 0, 100);
       volumeValue.textContent = `${volumeInput.value}%`;
     });
+
+    for (const channel of ['music', 'cues']) {
+      const slider = document.getElementById('settings-' + channel);
+      const output = document.getElementById('settings-' + channel + '-value');
+      if (!slider || !output) continue;
+      slider.value = Math.round(AudioPlayer.getMix(channel) * 100);
+      output.value = slider.value + '%';
+      slider.addEventListener('input', () => {
+        AudioPlayer.setMix(channel, Number(slider.value) / 100);
+        output.value = slider.value + '%';
+      });
+    }
 
     saveButton.addEventListener('click', () => {
       const approach = readNumber(approachInput, 1000, 5000, Game.getApproachTime());
@@ -354,7 +410,7 @@ const App = (() => {
     ExerciseBuilder.init((session) => {
       _loadedSession = session;
       showScreen('game');
-    });
+    }, _bindPreview);
     _initHomePreview();
     _buildQuickTrainingList();
     _bindGameHud();

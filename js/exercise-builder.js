@@ -33,6 +33,14 @@ const ExerciseBuilder = (() => {
       defaultBpm: 115,
     },
     {
+      id: 'workshop',
+      name: _t('Ритм мастерской'),
+      description: _t('Подстраивается под темп тренировки'),
+      audioUrl: null,
+      rhythm: true,
+      defaultBpm: 84,
+    },
+    {
       id: 'none',
       name: _t('Без фоновой музыки'),
       emoji: '🔕',
@@ -57,6 +65,7 @@ const ExerciseBuilder = (() => {
   let _onStart = null;
   let _els = null;
   let _customAudio = null;
+  let _stopPreview = null;
 
   function _clamp(value, min, max, fallback) {
     const numeric = parseInt(value, 10);
@@ -91,6 +100,7 @@ const ExerciseBuilder = (() => {
       actionCount: _clamp(raw.actionCount, 5, 200, DEFAULT_PLAN.actionCount),
       generationMode,
       audioId: validAudioIds.has(raw.audioId) ? raw.audioId : DEFAULT_PLAN.audioId,
+      audioLoop: raw.audioLoop !== false,
       seed: _clamp(raw.seed, 1, 999999999, DEFAULT_PLAN.seed),
     };
   }
@@ -224,7 +234,8 @@ const ExerciseBuilder = (() => {
       gestureIds: activeGestures.map(gesture => gesture.id),
       audioUrl: preset.audioUrl,
       audioName: preset.name,
-      audioLoop: true,
+      audioLoop: plan.audioLoop,
+      audioRhythm: preset.rhythm ? { bpm: plan.bpm, anchorMs: leadInMs } : null,
       approachTimeMs: plan.fallDurationMs,
       hitWindowMs: plan.hitWindowMs,
       exercise: {
@@ -304,6 +315,7 @@ const ExerciseBuilder = (() => {
       card.querySelector('strong').textContent = preset.name;
       card.querySelector('small').textContent = preset.description;
       card.addEventListener('click', () => {
+        _stopPreview?.();
         _plan.audioId = preset.id;
         savePlan(_plan);
         _render();
@@ -353,6 +365,10 @@ const ExerciseBuilder = (() => {
       card.setAttribute('aria-pressed', String(active));
     });
     _els.customCard.classList.toggle('selected', _plan.audioId === 'custom');
+    const audio = audioPreset(_plan.audioId);
+    _els.audioPreview.disabled = !audio.audioUrl && !audio.rhythm;
+    _els.audioLoop.disabled = !audio.audioUrl;
+    _els.audioLoop.checked = _plan.audioLoop;
 
     const count = _plan.gestureIds.length;
     const targets = targetFingerIndexes().map(index => FINGER_LABELS[index]);
@@ -366,7 +382,7 @@ const ExerciseBuilder = (() => {
     _els.windowValue.textContent = _t`±${_plan.hitWindowMs} мс`;
     _els.actionValue.textContent = String(_plan.actionCount);
     _els.seedValue.textContent = `Seed ${_plan.seed}`;
-    _els.start.disabled = count === 0;
+    _els.start.disabled = count === 0 || _els.addAudio.disabled;
     _els.error.textContent = '';
     _renderPreview();
   }
@@ -395,7 +411,7 @@ const ExerciseBuilder = (() => {
     _render();
   }
 
-  function init(onStart) {
+  function init(onStart, bindPreview) {
     _onStart = onStart;
     _els = {
       name: document.getElementById('exercise-name'),
@@ -404,6 +420,9 @@ const ExerciseBuilder = (() => {
       audioGrid: document.getElementById('exercise-audio-presets'),
       customCard: document.getElementById('exercise-upload-card'),
       audioInput: document.getElementById('exercise-audio-input'),
+      audioPreview: document.getElementById('exercise-audio-preview'),
+      audioLoop: document.getElementById('exercise-audio-loop'),
+      audioStatus: document.getElementById('exercise-audio-status'),
       addAudio: document.getElementById('exercise-add-audio'),
       uploadError: document.getElementById('exercise-upload-error'),
       bpm: document.getElementById('exercise-bpm'),
@@ -449,20 +468,48 @@ const ExerciseBuilder = (() => {
       savePlan(_plan);
       _render();
     });
-    _els.addAudio.addEventListener('click', () => {
+    _stopPreview = bindPreview(_els.audioPreview, _els.audioStatus, () => {
+      const audio = audioPreset(_plan.audioId);
+      return {
+        audioUrl: audio.audioUrl,
+        audioRhythm: audio.rhythm ? { bpm: _plan.bpm, anchorMs: 0 } : null,
+      };
+    });
+    _els.audioLoop.addEventListener('change', () => {
+      _plan.audioLoop = _els.audioLoop.checked;
+      savePlan(_plan);
+    });
+    _els.addAudio.addEventListener('click', async () => {
       const file = _els.audioInput.files[0];
       _els.uploadError.textContent = '';
       if (!file) {
         _els.uploadError.textContent = _t('Выбери аудиофайл.');
         return;
       }
+      _stopPreview?.();
+      const audioUrl = URL.createObjectURL(file);
+      _els.addAudio.disabled = true;
+      _els.addAudio.textContent = _t('Файл проверяется…');
+      _render();
+      const valid = await AudioPlayer.validateFile(audioUrl);
+      _els.addAudio.disabled = false;
+      _els.addAudio.textContent = _t('Выбрать аудио');
+      _render();
+      if (!valid || _els.audioInput.files[0] !== file) {
+        URL.revokeObjectURL(audioUrl);
+        if (_els.audioInput.files[0] === file) {
+          _els.uploadError.textContent = _t('Этот аудиофайл не открывается. Попробуй другой.');
+        }
+        return;
+      }
+      _stopPreview?.();
       if (_customAudio?.audioUrl) URL.revokeObjectURL(_customAudio.audioUrl);
       _customAudio = {
         id: 'custom',
         name: file.name.replace(/\.[^.]+$/, ''),
         emoji: '🎧',
         description: _t('Локальный аудиофайл'),
-        audioUrl: URL.createObjectURL(file),
+        audioUrl,
         defaultBpm: _plan.bpm,
       };
       _plan.audioId = 'custom';
