@@ -126,7 +126,7 @@
           <div><span class="exercise-step">3</span><h3>Фоновое аудио</h3></div>
 
         </div>
-        <p class="exercise-help">Встроенный ритм следует темпу упражнения. Аудиофайлы играют в своём темпе.</p>
+        <p class="exercise-help">Одна плитка на долю. Для встроенных песен темп задан записью.</p>
         <div class="exercise-music-grid">
           <div class="exercise-audio-presets" id="exercise-audio-presets"></div>
           <div class="exercise-upload-card" id="exercise-upload-card">
@@ -142,6 +142,9 @@
         <div class="audio-controls">
           <button class="btn-secondary" id="exercise-audio-preview" type="button">Послушать</button>
           <label class="exercise-all-actions"><input type="checkbox" id="exercise-audio-loop" checked />Повторять аудиофайл</label>
+          <label id="exercise-first-beat-row" hidden><span>Начало первой доли (мс)</span>
+            <input id="exercise-first-beat" type="number" min="0" max="60000" step="1" value="0" />
+          </label>
           <p class="audio-status" id="exercise-audio-status" role="status"></p>
         </div>
       </section>

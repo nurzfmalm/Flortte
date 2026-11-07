@@ -358,7 +358,6 @@ const Game = (() => {
 
     if (best) {
       best.hit = true;
-      if (Number.isFinite(best.note)) AudioPlayer.noteOn?.(best.note);
       const accuracy = bestDist < 60  ? 'PERFECT'
                      : bestDist < 120 ? 'GOOD'
                      :                  'OK';
@@ -404,7 +403,7 @@ const Game = (() => {
     _tiles = _tiles.filter(t => !(t.hit || t.miss) || t.opacity > 0.01);
     // Fade hits/misses
     for (const t of _tiles) {
-      if (t.hit || t.miss) t.opacity -= 0.08;
+      if ((t.hit || t.miss) && currentMs >= t.time) t.opacity -= 0.08;
     }
   }
 

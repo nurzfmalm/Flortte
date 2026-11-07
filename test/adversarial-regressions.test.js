@@ -129,8 +129,23 @@ async function run() {
   }
 
   {
+    let media;
+    let frame;
+    let wallTime = 0;
+    let cueCount = 0;
+    class BeatAudioContext extends fakeAudioContext() {
+      createOscillator() {
+        return { ...super.createOscillator(), start() { cueCount++; } };
+      }
+    }
     class StrictAudio {
-      constructor() { this.currentTime = 0; this.loop = false; this._volume = 1; }
+      constructor() {
+        this.currentTime = 0;
+        this.duration = 4;
+        this.loop = false;
+        this._volume = 1;
+        media = this;
+      }
       set volume(value) {
         if (!Number.isFinite(value) || value < 0 || value > 1) throw new RangeError('invalid volume');
         this._volume = value;
@@ -141,16 +156,46 @@ async function run() {
     }
     const context = contextWith({
       localStorage: storage({ volume: '2' }),
-      performance: { now: () => 0 },
-      window: { AudioContext: fakeAudioContext() },
+      performance: { now: () => wallTime },
+      window: { AudioContext: BeatAudioContext },
       Audio: StrictAudio,
-      requestAnimationFrame() { return 1; },
-      cancelAnimationFrame() {},
+      requestAnimationFrame(callback) { frame = callback; return 1; },
+      cancelAnimationFrame() { frame = null; },
     });
     runScript(context, 'js/audio.js');
     const AudioPlayer = readGlobal(context, 'AudioPlayer');
     assert.equal(AudioPlayer.getVolume(), 1, 'A2 clamps persisted volume');
-    assert.doesNotThrow(() => AudioPlayer.play({ audioUrl: 'song.mp3', durationMs: 1000, notes: [] }));
+    const player = AudioPlayer.play({
+      audioUrl: 'song.mp3', durationMs: 6000, trackDurationMs: 4000,
+      notes: [1000, 2000, 4250].map(time => ({ time, note: 60, duration: 160 })),
+    });
+    wallTime = 1800;
+    media.currentTime = 0.999;
+    frame();
+    assert.equal(player.currentMs, 999);
+    assert.equal(cueCount, 0, 'Never sound the tile before it reaches the hit line');
+    media.currentTime = 1;
+    frame();
+    frame();
+    assert.equal(cueCount, 1, 'Sound the tile once when the media reaches its beat');
+
+    player.pause();
+    wallTime += 10000;
+    assert.equal(player.currentMs, 1000);
+    assert.equal(frame, null);
+    player.resume();
+    frame();
+    assert.equal(cueCount, 1, 'Resuming does not replay an already crossed beat');
+    media.currentTime = 2;
+    frame();
+    assert.equal(cueCount, 2);
+    media.currentTime = 3.999;
+    frame();
+    media.currentTime = 0.25;
+    frame();
+    assert.equal(player.currentMs, 4250, 'Native looping continues on the next beat cycle');
+    assert.equal(cueCount, 3);
+    player.stop();
   }
 
   {

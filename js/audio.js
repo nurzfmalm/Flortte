@@ -88,6 +88,9 @@ const AudioPlayer = (() => {
     let stopped = false;
     let raf;
     let audioFailed = false;
+    let trackFinished = false;
+    let lastPositionMs = 0;
+    let trackCycles = 0;
     let playAttempt = 0;
     let wallTime = performance.now();
     let offset = Math.max(0, Number(startAt) || 0);
@@ -100,15 +103,21 @@ const AudioPlayer = (() => {
     const beatAt = time => Math.max(0, Math.ceil((time - firstBeat) / pulse));
     let beat = beatAt(offset);
 
+    function switchToWallClock() {
+      offset = currentMs();
+      wallTime = performance.now();
+    }
+
     function failAudio() {
       if (stopped || audioFailed) return;
+      switchToWallClock();
       audioFailed = true;
       audio.pause();
       onError?.();
     }
 
     function startAudio() {
-      if (!audio || audioFailed) return;
+      if (!audio || audioFailed || trackFinished) return;
       const attempt = ++playAttempt;
       audio.play().catch(() => {
         if (!paused && attempt === playAttempt) failAudio();
@@ -116,7 +125,14 @@ const AudioPlayer = (() => {
     }
 
     function currentMs() {
-      return paused || stopped ? offset : performance.now() - wallTime + offset;
+      if (paused || stopped) return offset;
+      if (audio && session.trackDurationMs && !audioFailed && !trackFinished) {
+        const positionMs = audio.currentTime * 1000;
+        if (audio.loop && lastPositionMs - positionMs > audio.duration * 500) trackCycles++;
+        lastPositionMs = positionMs;
+        return trackCycles * session.trackDurationMs + positionMs;
+      }
+      return performance.now() - wallTime + offset;
     }
 
     function scheduleRhythm(elapsed) {
@@ -138,7 +154,7 @@ const AudioPlayer = (() => {
       const elapsed = currentMs();
       while (noteIndex < session.notes.length && session.notes[noteIndex].time <= elapsed) {
         const note = session.notes[noteIndex++];
-        if ((!audio || audioFailed) && !pulse && elapsed - note.time < 100) {
+        if (elapsed - note.time < 100) {
           tone('cues', note.note, 0.22, Math.max(0.06, note.duration / 1000));
         }
         onNote?.(note, elapsed);
@@ -191,11 +207,16 @@ const AudioPlayer = (() => {
     if (audio) {
       audio.preload = 'auto';
       audio.loop = session.audioLoop !== false;
-      audio.currentTime = Math.max(0, Number(session.audioOffsetMs) || 0) / 1000;
+      audio.currentTime = offset / 1000;
       audio.onerror = failAudio;
-      if (stopAtTrackEnd) audio.onended = () => {
-        controller.stop();
-        onEnd?.();
+      audio.onended = () => {
+        if (stopAtTrackEnd) {
+          controller.stop();
+          onEnd?.();
+        } else {
+          switchToWallClock();
+          trackFinished = true;
+        }
       };
       activeMusic = audio;
       applyMix();
@@ -216,10 +237,10 @@ const AudioPlayer = (() => {
         audio.load();
         resolve(valid);
       };
-      const timeout = setTimeout(() => done(false), 5000);
+      const timeout = setTimeout(() => done(0), 5000);
       audio.preload = 'metadata';
-      audio.onloadedmetadata = () => done(Number.isFinite(audio.duration) && audio.duration > 0);
-      audio.onerror = () => done(false);
+      audio.onloadedmetadata = () => done(Number.isFinite(audio.duration) && audio.duration > 0 ? Math.round(audio.duration * 1000) : 0);
+      audio.onerror = () => done(0);
       audio.src = url;
     });
   }
