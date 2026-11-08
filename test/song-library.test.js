@@ -23,6 +23,29 @@ audioFiles.forEach(([name, file]) => {
 assert.ok(appSource.includes('ExerciseBuilder.createQuickTraining'));
 assert.ok(gameSource.includes('AudioPlayer.play'));
 assert.ok(indexSource.includes('js/audio.js'));
-assert.ok(!indexSource.toLowerCase().includes('.mid'));
-assert.ok(!builderSource.includes('MidiPlayer'));
-console.log('Audio training library passed.');
+assert.ok(indexSource.includes('js/midi.js'));
+const vm = require('node:vm');
+const midiSource = fs.readFileSync(path.join(root, 'js', 'midi.js'), 'utf8');
+const midi = vm.runInNewContext(midiSource + '\nMidiFile');
+const events = [
+  0, 0xff, 0x51, 3, 0x07, 0xa1, 0x20, // 120 BPM
+  0, 0x90, 60, 90,
+  96, 60, 0, // running status, note off via zero velocity
+  0, 0xff, 0x51, 3, 0x0f, 0x42, 0x40, // 60 BPM
+  0, 0x90, 62, 90,
+  96, 0x80, 62, 0,
+  0, 0xff, 0x2f, 0,
+];
+const fixture = Uint8Array.from([
+  0x4d, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 0, 0, 1, 0, 96,
+  0x4d, 0x54, 0x72, 0x6b, 0, 0, 0, events.length, ...events,
+]).buffer;
+const score = midi.parse(fixture);
+assert.equal(score.defaultBpm, 120);
+assert.deepEqual(Array.from(score.beats), [0, 500]);
+assert.deepEqual(Array.from(score.midiNotes, note => [note.time, note.duration, note.pitch]), [
+  [0, 500, 60], [500, 1000, 62],
+]);
+assert.equal(score.trackDurationMs, 1500);
+assert.throws(() => midi.parse(fixture.slice(0, -1)));
+console.log('Audio training library and MIDI tempo map passed.');

@@ -126,15 +126,15 @@
           <div><span class="exercise-step">3</span><h3>Фоновое аудио</h3></div>
 
         </div>
-        <p class="exercise-help">Одна плитка на долю. Для встроенных песен темп задан записью.</p>
+        <p class="exercise-help">Музыка и плитки меняют скорость вместе. Каждая плитка следует доле песни.</p>
         <div class="exercise-music-grid">
           <div class="exercise-audio-presets" id="exercise-audio-presets"></div>
           <div class="exercise-upload-card" id="exercise-upload-card">
             <div class="exercise-upload-heading">
               <span class="exercise-music-icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 13v-1a8 8 0 0 1 16 0v1m-16 0h4v7H4zm12 0h4v7h-4z"/></svg></span>
-              <span><strong>Свое аудио</strong><small>MP3, WAV, OGG, M4A или AAC</small></span>
+              <span><strong>Свое аудио</strong><small>MP3, WAV, OGG, M4A, AAC или MIDI</small></span>
             </div>
-            <label class="file-pick"><span>Аудиофайл</span><input type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac" id="exercise-audio-input" /></label>
+            <label class="file-pick"><span>Аудиофайл</span><input type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.mid,.midi" id="exercise-audio-input" /></label>
             <button class="btn-secondary" id="exercise-add-audio" type="button">Выбрать аудио</button>
             <p class="exercise-upload-error" id="exercise-upload-error" role="alert"></p>
           </div>
@@ -142,6 +142,9 @@
         <div class="audio-controls">
           <button class="btn-secondary" id="exercise-audio-preview" type="button">Послушать</button>
           <label class="exercise-all-actions"><input type="checkbox" id="exercise-audio-loop" checked />Повторять аудиофайл</label>
+          <label id="exercise-source-bpm-row" hidden><span>Исходный темп записи (BPM)</span>
+            <input id="exercise-source-bpm" type="number" min="30" max="300" step="1" value="120" />
+          </label>
           <label id="exercise-first-beat-row" hidden><span>Начало первой доли (мс)</span>
             <input id="exercise-first-beat" type="number" min="0" max="60000" step="1" value="0" />
           </label>
@@ -152,7 +155,7 @@
       <section class="exercise-panel">
         <div class="exercise-section-heading">
           <div><span class="exercise-step">4</span><h3>Параметры тренировки</h3></div>
-          <span class="exercise-save-state">Каждая настройка влияет отдельно</span>
+          <span class="exercise-save-state">Темп и скорость падения связаны</span>
         </div>
         <div class="exercise-playback-controls exercise-training-controls">
           <label class="exercise-playback-control">
@@ -161,7 +164,7 @@
               <span id="exercise-bpm-value">70 BPM</span>
             </span>
             <input id="exercise-bpm" type="range" min="30" max="180" step="1" value="70" />
-            <small>Определяет интервал между нужными жестами.</small>
+            <small>Меняет темп музыки и частоту плиток.</small>
           </label>
           <label class="exercise-playback-control">
             <span class="exercise-control-heading">
@@ -169,7 +172,7 @@
               <span id="exercise-fall-value">2.8 с</span>
             </span>
             <input id="exercise-fall-duration" type="range" min="1000" max="5000" step="100" value="2800" />
-            <small>Сколько времени плитка видна до линии попадания.</small>
+            <small>Меньше времени до линии — быстрее музыка и плитки.</small>
           </label>
           <label class="exercise-playback-control">
             <span class="exercise-control-heading">
@@ -561,7 +564,6 @@
           <span id="settings-vol-val">80%</span>
         </label>
         <label><span>Громкость музыки</span><input type="range" id="settings-music" min="0" max="100" /><output for="settings-music" id="settings-music-value"></output></label>
-        <label><span>Громкость подсказок</span><input type="range" id="settings-cues" min="0" max="100" /><output for="settings-cues" id="settings-cues-value"></output></label>
       </div>
       <div class="setting-group">
         <h3>Маппинг жестов</h3>
@@ -590,6 +592,7 @@
   <script src="js/i18n.js"></script>
   <script src="js/esp32.js"></script>
   <script src="js/gestures.js"></script>
+  <script src="js/midi.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/game-results.js"></script>
   <script src="js/exercise-builder.js"></script>

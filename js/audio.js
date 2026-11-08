@@ -6,9 +6,8 @@ const AudioPlayer = (() => {
   let volume = readLevel('volume', 0.8);
   const mix = {
     music: readLevel('flortte_music_volume', 0.75),
-    cues: readLevel('flortte_cues_volume', 0.55),
   };
-  const voices = { music: new Set(), cues: new Set() };
+  const voices = new Set();
   const gains = {};
   const melody = [60, 64, 67, 64, 62, 65, 69, 65, 64, 67, 72, 67, 62, 65, 67, 71];
   const bass = [48, 53, 45, 55];
@@ -52,20 +51,20 @@ const AudioPlayer = (() => {
     if (context.state === 'suspended') context.resume().catch(() => {});
   }
 
-  function tone(channel, note, peak, duration, start = context?.currentTime) {
+  function tone(note, peak, duration, start) {
     if (!context || context.state !== 'running') return;
     const gain = context.createGain();
     const oscillator = context.createOscillator();
-    oscillator.type = channel === 'cues' ? 'triangle' : 'sine';
+    oscillator.type = 'triangle';
     oscillator.frequency.value = 440 * Math.pow(2, (note - 69) / 12);
     oscillator.connect(gain);
-    gain.connect(gains[channel]);
+    gain.connect(gains.music);
     gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(peak, start + 0.012);
+    gain.gain.exponentialRampToValueAtTime(peak, start + Math.min(0.012, duration / 3));
     gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-    voices[channel].add(oscillator);
+    voices.add(oscillator);
     oscillator.onended = () => {
-      voices[channel].delete(oscillator);
+      voices.delete(oscillator);
       oscillator.disconnect();
       gain.disconnect();
     };
@@ -74,13 +73,11 @@ const AudioPlayer = (() => {
   }
 
   function silence() {
-    for (const channel of Object.values(voices)) {
-      for (const oscillator of channel) oscillator.stop();
-      channel.clear();
-    }
+    for (const oscillator of voices) oscillator.stop();
+    voices.clear();
   }
 
-  function play(session, { onNote, onEnd, onError, stopAtTrackEnd = false, startAt = 0 } = {}) {
+  function play(session, { onEnd, onError, stopAtTrackEnd = false, startAt = 0 } = {}) {
     active?.stop();
     resumeCtx();
 
@@ -94,10 +91,23 @@ const AudioPlayer = (() => {
     let playAttempt = 0;
     let wallTime = performance.now();
     let offset = Math.max(0, Number(startAt) || 0);
-    let noteIndex = session.notes.findIndex(note => note.time >= offset);
-    if (noteIndex < 0) noteIndex = session.notes.length;
-
+    const rate = session.playbackRate || 1;
+    const lead = session.playbackLeadMs || 0;
+    let audioStarted = false;
     const audio = session.audioUrl ? new Audio(session.audioUrl) : null;
+    const midi = session.midiNotes;
+    const cycleMs = session.trackDurationMs / rate;
+    let midiCycle = 0;
+    let midiIndex = 0;
+    function seekMidi(elapsed) {
+      if (!midi?.length) return;
+      const musicTime = Math.max(0, elapsed - lead);
+      midiCycle = Math.floor(musicTime / cycleMs);
+      const position = (musicTime - midiCycle * cycleMs) * rate;
+      midiIndex = midi.findIndex(note => note.time >= position);
+      if (midiIndex < 0) midiIndex = midi.length;
+    }
+    seekMidi(offset);
     const pulse = session.audioRhythm && 60000 / session.audioRhythm.bpm;
     const firstBeat = pulse ? session.audioRhythm.anchorMs % pulse : 0;
     const beatAt = time => Math.max(0, Math.ceil((time - firstBeat) / pulse));
@@ -118,6 +128,7 @@ const AudioPlayer = (() => {
 
     function startAudio() {
       if (!audio || audioFailed || trackFinished) return;
+      audioStarted = true;
       const attempt = ++playAttempt;
       audio.play().catch(() => {
         if (!paused && attempt === playAttempt) failAudio();
@@ -126,11 +137,15 @@ const AudioPlayer = (() => {
 
     function currentMs() {
       if (paused || stopped) return offset;
-      if (audio && session.trackDurationMs && !audioFailed && !trackFinished) {
+      if (audioStarted && session.trackDurationMs && !audioFailed && !trackFinished) {
         const positionMs = audio.currentTime * 1000;
         if (audio.loop && lastPositionMs - positionMs > audio.duration * 500) trackCycles++;
         lastPositionMs = positionMs;
-        return trackCycles * session.trackDurationMs + positionMs;
+        const durationMs = audio.duration * 1000;
+        const sourceMs = Number.isFinite(durationMs) && durationMs > 0
+          ? positionMs * session.trackDurationMs / durationMs
+          : positionMs;
+        return lead + trackCycles * cycleMs + sourceMs / rate;
       }
       return performance.now() - wallTime + offset;
     }
@@ -143,28 +158,44 @@ const AudioPlayer = (() => {
       while (firstBeat + beat * pulse <= Math.min(elapsed + 90, session.durationMs)) {
         const start = context.currentTime + Math.max(0, (firstBeat + beat * pulse - elapsed) / 1000);
         const phase = ((beat - beatsBeforeAnchor) % 16 + 16) % 16;
-        tone('music', melody[phase], 0.14, Math.min(0.38, pulse / 1400), start);
-        if (phase % 4 === 0) tone('music', bass[phase / 4], 0.21, 0.5, start);
+        tone(melody[phase], 0.14, Math.min(0.38, pulse / 1400), start);
+        if (phase % 4 === 0) tone(bass[phase / 4], 0.21, 0.5, start);
         beat++;
+      }
+    }
+
+    function scheduleMidi(elapsed) {
+      if (!midi?.length || context?.state !== 'running') return;
+      if (elapsed > lead + (midiCycle + 1) * cycleMs + 90) seekMidi(elapsed);
+      while (session.audioLoop !== false || midiCycle === 0) {
+        if (midiIndex === midi.length) {
+          midiCycle++;
+          midiIndex = 0;
+          continue;
+        }
+        const note = midi[midiIndex];
+        const time = lead + midiCycle * cycleMs + note.time / rate;
+        if (time > Math.min(elapsed + 90, session.durationMs)) return;
+        const remaining = note.duration / rate - Math.max(0, elapsed - time);
+        if (remaining > 0) {
+          const start = context.currentTime + Math.max(0, (time - elapsed) / 1000);
+          tone(note.pitch, 0.15 * note.velocity / 127, remaining / 1000, start);
+        }
+        midiIndex++;
       }
     }
 
     function tick() {
       if (paused || stopped) return;
       const elapsed = currentMs();
-      while (noteIndex < session.notes.length && session.notes[noteIndex].time <= elapsed) {
-        const note = session.notes[noteIndex++];
-        if (elapsed - note.time < 100) {
-          tone('cues', note.note, 0.22, Math.max(0.06, note.duration / 1000));
-        }
-        onNote?.(note, elapsed);
-      }
+      if (audio && !audioStarted && elapsed >= lead) startAudio();
       if (elapsed >= session.durationMs) {
         controller.stop();
         onEnd?.();
         return;
       }
       scheduleRhythm(elapsed);
+      scheduleMidi(elapsed);
       raf = requestAnimationFrame(tick);
     }
 
@@ -183,8 +214,9 @@ const AudioPlayer = (() => {
         paused = false;
         wallTime = performance.now();
         beat = beatAt(offset);
+        seekMidi(offset);
         resumeCtx();
-        startAudio();
+        if (audioStarted || offset >= lead) startAudio();
         raf = requestAnimationFrame(tick);
       },
       stop() {
@@ -206,8 +238,9 @@ const AudioPlayer = (() => {
     active = controller;
     if (audio) {
       audio.preload = 'auto';
+      audio.playbackRate = rate;
       audio.loop = session.audioLoop !== false;
-      audio.currentTime = offset / 1000;
+      audio.currentTime = Math.max(0, offset - lead) * rate / 1000;
       audio.onerror = failAudio;
       audio.onended = () => {
         if (stopAtTrackEnd) {
@@ -220,7 +253,7 @@ const AudioPlayer = (() => {
       };
       activeMusic = audio;
       applyMix();
-      startAudio();
+      if (offset >= lead) startAudio();
     }
     raf = requestAnimationFrame(tick);
     return controller;
@@ -257,9 +290,5 @@ const AudioPlayer = (() => {
     applyMix();
   }
 
-  function noteOn(note) {
-    tone('cues', note, 0.27, 0.19);
-  }
-
-  return { play, noteOn, validateFile, setVolume, getVolume: () => volume, setMix, getMix: channel => mix[channel], resumeCtx };
+  return { play, validateFile, setVolume, getVolume: () => volume, setMix, getMix: channel => mix[channel], resumeCtx };
 })();

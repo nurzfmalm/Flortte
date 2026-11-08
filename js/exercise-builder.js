@@ -4,6 +4,7 @@ const ExerciseBuilder = (() => {
   const _t = typeof I18n !== 'undefined' ? I18n.t : (message, ...values) =>
     typeof message === 'string' ? message : message.reduce((text, part, index) =>
       text + part + (index < values.length ? values[index] : ''), '');
+  const REFERENCE_APPROACH_MS = 2800;
   const STORAGE_KEY = 'flortte_exercise_plan_v2';
   const FINGER_LABELS = [_t('Большой'), _t('Указательный'), _t('Средний'), _t('Безымянный'), _t('Мизинец')];
   const GENERATION_MODES = new Set(['balanced', 'random', 'no-repeat', 'sequence']);
@@ -36,7 +37,8 @@ const ExerciseBuilder = (() => {
       audioUrl: 'assets/audio/blue-tractor.mp3',
       defaultBpm: 96,
       trackDurationMs: 32888,
-      firstBeatMs: 0,
+      firstBeatMs: 2494,
+      lastBeatMs: 31875,
     },
     {
       id: 'baby-shark',
@@ -46,7 +48,8 @@ const ExerciseBuilder = (() => {
       audioUrl: 'assets/audio/baby-shark-training.mp3',
       defaultBpm: 120,
       trackDurationMs: 32260,
-      firstBeatMs: 0,
+      firstBeatMs: 494,
+      lastBeatMs: 31500,
     },
     {
       id: 'carefree',
@@ -55,7 +58,8 @@ const ExerciseBuilder = (() => {
       audioUrl: 'assets/audio/carefree.mp3',
       defaultBpm: 96,
       trackDurationMs: 205140,
-      firstBeatMs: 31,
+      firstBeatMs: 29,
+      lastBeatMs: 200030,
     },
     {
       id: 'monkeys',
@@ -64,7 +68,7 @@ const ExerciseBuilder = (() => {
       audioUrl: 'assets/audio/monkeys-spinning-monkeys.mp3',
       defaultBpm: 144,
       trackDurationMs: 125074,
-      firstBeatMs: 58,
+      firstBeatMs: 44,
     },
     {
       id: 'workshop',
@@ -126,12 +130,13 @@ const ExerciseBuilder = (() => {
     const validAudioIds = new Set([...AUDIO_PRESETS.map(preset => preset.id), 'custom']);
 
     const audioId = validAudioIds.has(raw.audioId) ? raw.audioId : DEFAULT_PLAN.audioId;
-    const recorded = AUDIO_PRESETS.find(preset => preset.id === audioId && preset.audioUrl);
+    const nativeBpm = audioPreset(audioId).defaultBpm;
 
     return {
       name: String(raw.name || DEFAULT_PLAN.name).trim().slice(0, 60) || DEFAULT_PLAN.name,
       gestureIds,
-      bpm: recorded?.defaultBpm ?? _clamp(raw.bpm, 30, 180, DEFAULT_PLAN.bpm),
+      bpm: _clamp(raw.bpm, Math.min(30, nativeBpm), Math.max(180, nativeBpm), nativeBpm),
+      sourceBpm: _clamp(raw.sourceBpm ?? raw.bpm, 30, 300, nativeBpm),
       fallDurationMs: _clamp(raw.fallDurationMs, 1000, 5000, DEFAULT_PLAN.fallDurationMs),
       hitWindowMs: _clamp(raw.hitWindowMs, 100, 500, DEFAULT_PLAN.hitWindowMs),
       actionCount: _clamp(raw.actionCount, 5, 200, DEFAULT_PLAN.actionCount),
@@ -235,28 +240,34 @@ const ExerciseBuilder = (() => {
       || AUDIO_PRESETS.find(preset => preset.id === DEFAULT_PLAN.audioId);
   }
 
-  function beatTimes(plan, preset) {
-    const interval = 60000 / plan.bpm;
-    const leadIn = plan.fallDurationMs + 500;
-    if (!preset.audioUrl) {
-      return Array.from({ length: plan.actionCount }, (_, index) => Math.round(leadIn + index * interval));
+  function sourceBpm(plan, preset) {
+    return preset.id === 'custom' && !preset.midiNotes ? plan.sourceBpm : preset.defaultBpm;
+  }
+
+  function playbackRate(plan, preset) {
+    const rate = plan.bpm / sourceBpm(plan, preset) * REFERENCE_APPROACH_MS / plan.fallDurationMs;
+    return Math.min(4, Math.max(0.25, rate));
+  }
+
+  function beatTimes(plan, preset, rate) {
+    const interval = 60000 / sourceBpm(plan, preset);
+    const leadIn = REFERENCE_APPROACH_MS + 500 * rate;
+    if (!preset.trackDurationMs) {
+      return Array.from({ length: plan.actionCount }, (_, index) => (leadIn + index * interval) / rate);
     }
 
-    const firstBeat = preset.id === 'custom' ? plan.firstBeatMs : preset.firstBeatMs;
+    const firstBeat = preset.id === 'custom' && !preset.midiNotes ? plan.firstBeatMs : preset.firstBeatMs;
     const duration = preset.trackDurationMs;
     if (firstBeat >= duration) return [];
-    const beatCount = preset.beats?.length ?? Math.ceil((duration - firstBeat) / interval);
+    const beatCount = preset.beats?.length ?? Math.max(0, Math.ceil((Math.min(duration, preset.lastBeatMs ?? duration) - firstBeat) / interval));
     if (!beatCount) return [];
     const times = [];
-    // The first tile needs a full approach; later cycles reuse the file's beat grid.
+    const preparationMs = leadIn / rate;
+    // A silent approach precedes the recording, so even a short clip keeps its first beat.
     for (let cycle = 0; times.length < plan.actionCount; cycle++) {
-      const cycleStart = cycle * duration;
-      const firstIndex = preset.beats ? 0 : Math.max(0, Math.ceil((leadIn - cycleStart - firstBeat) / interval));
-      for (let index = firstIndex; index < beatCount; index++) {
+      for (let index = 0; index < beatCount && times.length < plan.actionCount; index++) {
         const beat = preset.beats?.[index] ?? firstBeat + index * interval;
-        const time = Math.round(cycleStart + beat);
-        if (time >= leadIn) times.push(time);
-        if (times.length === plan.actionCount) break;
+        times.push(preparationMs + (cycle * duration + beat) / rate);
       }
       if (!plan.audioLoop) break;
     }
@@ -275,9 +286,11 @@ const ExerciseBuilder = (() => {
     const gestureById = new Map(activeGestures.map(gesture => [gesture.id, gesture]));
     const laneById = new Map(activeGestures.map((gesture, index) => [gesture.id, index]));
     const sequence = generateGestureIds(plan, catalogue);
-    const intervalMs = 60000 / plan.bpm;
     const preset = audioPreset(plan.audioId);
-    const times = beatTimes(plan, preset);
+    const rate = playbackRate(plan, preset);
+    const bpm = sourceBpm(plan, preset) * rate;
+    const intervalMs = 60000 / bpm;
+    const times = beatTimes(plan, preset, rate);
     if (!times.length) throw new Error(_t('В записи нет доступных долей. Проверь темп и начало первой доли.'));
     const notes = times.map((time, index) => {
       const gestureId = sequence[index];
@@ -304,13 +317,16 @@ const ExerciseBuilder = (() => {
       audioName: preset.name,
       audioLoop: plan.audioLoop,
       trackDurationMs: preset.trackDurationMs,
-      audioRhythm: preset.rhythm ? { bpm: plan.bpm, anchorMs: times[0] } : null,
-      approachTimeMs: plan.fallDurationMs,
+      midiNotes: preset.midiNotes,
+      playbackRate: rate,
+      playbackLeadMs: preset.trackDurationMs ? REFERENCE_APPROACH_MS / rate + 500 : 0,
+      audioRhythm: preset.rhythm ? { bpm, anchorMs: times[0] } : null,
+      approachTimeMs: REFERENCE_APPROACH_MS / rate,
       hitWindowMs: plan.hitWindowMs,
       exercise: {
-        bpm: plan.bpm,
+        bpm: Math.round(bpm),
         intervalMs: Math.round(intervalMs),
-        fallDurationMs: plan.fallDurationMs,
+        fallDurationMs: REFERENCE_APPROACH_MS / rate,
         hitWindowMs: plan.hitWindowMs,
         actionCount: notes.length,
         generationMode: plan.generationMode,
@@ -436,23 +452,24 @@ const ExerciseBuilder = (() => {
     });
     _els.customCard.classList.toggle('selected', _plan.audioId === 'custom');
     const audio = audioPreset(_plan.audioId);
-    _els.audioPreview.disabled = !audio.audioUrl && !audio.rhythm;
-    _els.audioLoop.disabled = !audio.audioUrl;
+    _els.audioPreview.disabled = !audio.audioUrl && !audio.rhythm && !audio.midiNotes;
+    _els.audioLoop.disabled = !audio.trackDurationMs;
     _els.audioLoop.checked = _plan.audioLoop;
-    _els.bpm.disabled = Boolean(audio.audioUrl && audio.id !== 'custom');
-    _els.firstBeatRow.hidden = audio.id !== 'custom';
+    _els.firstBeatRow.hidden = audio.id !== 'custom' || Boolean(audio.midiNotes);
+    _els.sourceBpmRow.hidden = _els.firstBeatRow.hidden;
+    const rate = playbackRate(_plan, audio);
 
     const count = _plan.gestureIds.length;
     const targets = targetFingerIndexes().map(index => FINGER_LABELS[index]);
-    const times = beatTimes(_plan, audio);
+    const times = beatTimes(_plan, audio, rate);
     const lastTime = times[times.length - 1];
     const durationSeconds = lastTime === undefined ? 0 : Math.ceil((lastTime + _plan.hitWindowMs + 900) / 1000);
     _els.count.textContent = `${count} ${_plural(count, _t('выбран'), _t('выбрано'), _t('выбрано'))}`;
     _els.targets.textContent = targets.length ? targets.join(', ') : _t('Не выбраны');
     _els.total.textContent = _t`${times.length} действий`;
     _els.duration.textContent = _t`${durationSeconds} сек`;
-    _els.bpmValue.textContent = `${_plan.bpm} BPM`;
-    _els.fallValue.textContent = _t`${(_plan.fallDurationMs / 1000).toFixed(1)} с`;
+    _els.bpmValue.textContent = `${Math.round(sourceBpm(_plan, audio) * rate)} BPM`;
+    _els.fallValue.textContent = _t`${(REFERENCE_APPROACH_MS / rate / 1000).toFixed(1)} с`;
     _els.windowValue.textContent = _t`±${_plan.hitWindowMs} мс`;
     _els.actionValue.textContent = String(_plan.actionCount);
     _els.seedValue.textContent = `Seed ${_plan.seed}`;
@@ -463,7 +480,11 @@ const ExerciseBuilder = (() => {
 
   function _syncFields() {
     _els.name.value = _plan.name;
+    const nativeBpm = audioPreset(_plan.audioId).defaultBpm;
+    _els.bpm.min = Math.min(30, nativeBpm);
+    _els.bpm.max = Math.max(180, nativeBpm);
     _els.bpm.value = _plan.bpm;
+    _els.sourceBpm.value = _plan.sourceBpm;
     _els.firstBeat.value = _plan.firstBeatMs;
     _els.fall.value = _plan.fallDurationMs;
     _els.window.value = _plan.hitWindowMs;
@@ -472,10 +493,12 @@ const ExerciseBuilder = (() => {
   }
 
   function _readFields() {
+    _stopPreview?.();
     _plan = normalizePlan({
       ..._plan,
       name: _els.name.value,
       bpm: _els.bpm.value,
+      sourceBpm: _els.sourceBpm.value,
       firstBeatMs: _els.firstBeat.value,
       fallDurationMs: _els.fall.value,
       hitWindowMs: _els.window.value,
@@ -499,6 +522,8 @@ const ExerciseBuilder = (() => {
       audioPreview: document.getElementById('exercise-audio-preview'),
       audioLoop: document.getElementById('exercise-audio-loop'),
       firstBeat: document.getElementById('exercise-first-beat'),
+      sourceBpm: document.getElementById('exercise-source-bpm'),
+      sourceBpmRow: document.getElementById('exercise-source-bpm-row'),
       firstBeatRow: document.getElementById('exercise-first-beat-row'),
       audioStatus: document.getElementById('exercise-audio-status'),
       addAudio: document.getElementById('exercise-add-audio'),
@@ -538,6 +563,7 @@ const ExerciseBuilder = (() => {
     });
     _els.mode.addEventListener('change', _readFields);
     _els.firstBeat.addEventListener('change', _readFields);
+    _els.sourceBpm.addEventListener('change', _readFields);
     _els.newSeed.addEventListener('click', () => {
       _plan.seed = Math.max(1, Date.now() % 999999999);
       savePlan(_plan);
@@ -552,7 +578,10 @@ const ExerciseBuilder = (() => {
       const audio = audioPreset(_plan.audioId);
       return {
         audioUrl: audio.audioUrl,
-        audioRhythm: audio.rhythm ? { bpm: _plan.bpm, anchorMs: 0 } : null,
+        trackDurationMs: audio.trackDurationMs,
+        midiNotes: audio.midiNotes,
+        playbackRate: playbackRate(_plan, audio),
+        audioRhythm: audio.rhythm ? { bpm: audio.defaultBpm * playbackRate(_plan, audio), anchorMs: 0 } : null,
       };
     });
     _els.audioLoop.addEventListener('change', () => {
@@ -568,16 +597,24 @@ const ExerciseBuilder = (() => {
         return;
       }
       _stopPreview?.();
-      const audioUrl = URL.createObjectURL(file);
+      const isMidi = /\.midi?$/i.test(file.name) || file.type === 'audio/midi';
+      const audioUrl = isMidi ? null : URL.createObjectURL(file);
       _els.addAudio.disabled = true;
       _els.addAudio.textContent = _t('Файл проверяется…');
       _render();
-      const trackDurationMs = await AudioPlayer.validateFile(audioUrl);
+      let source;
+      try {
+        source = isMidi
+          ? MidiFile.parse(await file.arrayBuffer())
+          : { trackDurationMs: await AudioPlayer.validateFile(audioUrl), defaultBpm: _plan.bpm };
+      } catch (_) {
+        source = null;
+      }
       _els.addAudio.disabled = false;
       _els.addAudio.textContent = _t('Выбрать аудио');
       _render();
-      if (!trackDurationMs || _els.audioInput.files[0] !== file) {
-        URL.revokeObjectURL(audioUrl);
+      if (!source?.trackDurationMs || _els.audioInput.files[0] !== file) {
+        if (audioUrl) URL.revokeObjectURL(audioUrl);
         if (_els.audioInput.files[0] === file) {
           _els.uploadError.textContent = _t('Этот аудиофайл не открывается. Попробуй другой.');
         }
@@ -591,11 +628,11 @@ const ExerciseBuilder = (() => {
         emoji: '🎧',
         description: _t('Локальный аудиофайл'),
         audioUrl,
-        trackDurationMs,
-        defaultBpm: _plan.bpm,
+        ...source,
       };
-      _plan.audioId = 'custom';
-      _plan.firstBeatMs = 0;
+      _plan = normalizePlan({
+        ..._plan, audioId: 'custom', bpm: source.defaultBpm, sourceBpm: source.defaultBpm, firstBeatMs: 0,
+      });
       _syncFields();
       savePlan(_plan);
       _els.addAudio.textContent = _t('✓ Аудио выбрано');
