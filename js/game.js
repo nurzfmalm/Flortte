@@ -554,9 +554,14 @@ const Game = (() => {
   }
 
   // ── Public ────────────────────────────────────────────────
-  function start(song) {
+  function prepare(song) {
     stop();
     if (Gestures.setActiveGestureIds) Gestures.setActiveGestureIds(song.gestureIds || null);
+    _syncLaneKeys();
+  }
+
+  function start(song) {
+    prepare(song);
     (song.notes || []).forEach(note => { delete note.resultRecorded; });
     _song      = song;
     _sessionApproachTime = _boundedNumber(song.approachTimeMs, _approachTime, 700, 11200);
@@ -647,5 +652,5 @@ const Game = (() => {
   function onScoreChange(fn) { _scoreListeners.push(fn); }
   function onEnd(fn)         { _endListeners.push(fn); }
 
-  return { init, start, stop, pause, resume, isActive, isPaused, setApproachTime, setWindow, getApproachTime, getWindow, onScoreChange, onEnd };
+  return { init, prepare, start, stop, pause, resume, isActive, isPaused, setApproachTime, setWindow, getApproachTime, getWindow, onScoreChange, onEnd };
 })();

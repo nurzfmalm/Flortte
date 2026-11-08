@@ -10,8 +10,8 @@ const indexSource = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 
 const audioFiles = [
   ['Гарри Поттер', 'potter.mp3'],
-  ['Синий трактор', 'blue-tractor.mp3'],
-  ['Baby Shark', 'baby-shark-training.mp3'],
+  ['The Builder', 'the-builder.mp3'],
+  ['Porch Swing Days (slower)', 'porch-swing-days.mp3'],
 ];
 audioFiles.forEach(([name, file]) => {
   assert.ok(builderSource.includes(name), `Missing audio preset ${name}`);

@@ -4,7 +4,7 @@ Flortte is an offline app for a five-finger ESP32 piano glove. The app reads the
 
 After every exercise, Flortte stores the success rate, mean timing error (MTE) and timing variability (population standard deviation). Diagnostics shows these metrics for the full session and each finger, then compares MTE with earlier attempts of the same exercise.
 
-The training builder generates a deterministic gesture schedule without MIDI. A plan stores BPM, tile fall time, hit tolerance, action count, generation mode, and seed. The same seed produces the same sequence for repeat comparisons. Background audio does not control tile timing. The offline presets include Гарри Поттер, an instrumental Синий трактор training arrangement, and an original Baby Shark training rhythm. Users may also select a local audio file.
+The training builder generates a repeatable sequence of selected gestures. Song beats determine when tiles cross the target line. Tempo and fall speed scale music and tiles together. Quick training uses the gesture selection saved in the builder. To play your own recording, choose **Import a song** from the quick training screen, select an audio or MIDI file, and set the source BPM and first beat for an audio recording. MIDI files supply their own tempo map. See [music credits](assets/audio/CREDITS.md) for the bundled recordings.
 
 ## Interface languages
 

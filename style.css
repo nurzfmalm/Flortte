@@ -274,6 +274,9 @@ input[type="range"] { accent-color: var(--accent); min-height: 44px; }
 #screen-songs { background: var(--bg); }
 .song-list { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
 
+.song-presets { display: flex; flex-direction: column; gap: 12px; }
+#songs-import { align-self: flex-start; }
+
 .song-card {
   display: flex; flex-direction: column; align-items: stretch; gap: 16px;
   background: var(--surface); border: 1px solid var(--border);
@@ -527,7 +530,8 @@ input[type="range"] { accent-color: var(--accent); min-height: 44px; }
   transition: background .08s;
   user-select: none;
 }
-.lane-key:last-child { border-right: none; }
+.lane-key[hidden] { display: none; }
+.lane-key:not(:has(~ .lane-key:not([hidden]))) { border-right: none; }
 .lane-key[data-lane="0"] { border-top: 3px solid var(--lane-0); }
 .lane-key[data-lane="1"] { border-top: 3px solid var(--lane-1); }
 .lane-key[data-lane="2"] { border-top: 3px solid var(--lane-2); }

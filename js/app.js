@@ -52,6 +52,7 @@ const App = (() => {
     if (id === 'diag') Diagnostics.enter();
     if (id === 'exercise') ExerciseBuilder.enter();
     if (id === 'game' && _loadedSession) {
+      Game.prepare(_loadedSession);
       const hudName = document.getElementById('hud-song-name');
       if (hudName) hudName.textContent = _loadedSession.name;
       const details = _loadedSession.exercise
@@ -294,6 +295,10 @@ const App = (() => {
     nav('btn-diag', 'diag');
     nav('btn-settings', 'settings');
     nav('songs-back', 'home');
+    document.getElementById('songs-import')?.addEventListener('click', () => {
+      showScreen('exercise');
+      document.getElementById('exercise-audio-input')?.focus();
+    });
     nav('exercise-back', 'home');
     nav('diag-back', 'home');
     nav('settings-back', 'home');

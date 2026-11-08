@@ -44,7 +44,7 @@ for (const match of html.matchAll(/(?:value|placeholder|title|aria-label)="([^"]
 }
 // Loading the real modules in Kazakh translates data used by generated UI and errors.
 for (const file of ['js/gestures.js', 'js/game-results.js', 'js/exercise-builder.js', 'js/diagnostic-metrics.js']) vm.runInContext(source(file), kk);
-assert.equal(vm.runInContext('ExerciseBuilder.audioPresets()[1].name', kk), 'Көк трактор');
+assert.equal(vm.runInContext('ExerciseBuilder.audioPresets()[1].name', kk), 'The Builder');
 assert.equal(vm.runInContext('ExerciseBuilder.normalizePlan().name', kk), 'Менің жаттығуым');
 assert.equal(vm.runInContext('ExerciseBuilder.normalizePlan({name:"Мой личный план"}).name', kk), 'Мой личный план');
 assert.equal(vm.runInContext('Gestures.playableGestures()[0].name', kk), '1. Сұқ саусақ + бас бармақ');
