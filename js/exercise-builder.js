@@ -8,6 +8,10 @@ const ExerciseBuilder = (() => {
   const STORAGE_KEY = 'flortte_exercise_plan_v2';
   const FINGER_LABELS = [_t('Большой'), _t('Указательный'), _t('Средний'), _t('Безымянный'), _t('Мизинец')];
   const GENERATION_MODES = new Set(['balanced', 'random', 'no-repeat', 'sequence']);
+  const REPLACED_AUDIO_IDS = new Map([
+    ['blue-tractor', 'the-builder'],
+    ['baby-shark', 'porch-swing-days'],
+  ]);
   const AUDIO_PRESETS = [
     {
       id: 'potter',
@@ -30,26 +34,22 @@ const ExerciseBuilder = (() => {
       ],
     },
     {
-      id: 'blue-tractor',
-      name: _t('Синий трактор'),
-      emoji: '🚜',
-      description: _t('Инструментальный тренировочный трек'),
-      audioUrl: 'assets/audio/blue-tractor.mp3',
-      defaultBpm: 96,
-      trackDurationMs: 32888,
-      firstBeatMs: 2494,
-      lastBeatMs: 31875,
+      id: 'the-builder',
+      name: 'The Builder',
+      description: 'Kevin MacLeod (CC BY 4.0)',
+      audioUrl: 'assets/audio/the-builder.mp3',
+      defaultBpm: 123,
+      trackDurationMs: 117629,
+      firstBeatMs: 24,
     },
     {
-      id: 'baby-shark',
-      name: 'Baby Shark',
-      emoji: '🦈',
-      description: _t('Оригинальный детский тренировочный ритм'),
-      audioUrl: 'assets/audio/baby-shark-training.mp3',
-      defaultBpm: 120,
-      trackDurationMs: 32260,
-      firstBeatMs: 494,
-      lastBeatMs: 31500,
+      id: 'porch-swing-days',
+      name: 'Porch Swing Days (slower)',
+      description: 'Kevin MacLeod (CC BY 4.0)',
+      audioUrl: 'assets/audio/porch-swing-days.mp3',
+      defaultBpm: 110,
+      trackDurationMs: 216288,
+      firstBeatMs: 18,
     },
     {
       id: 'carefree',
@@ -129,13 +129,15 @@ const ExerciseBuilder = (() => {
       : DEFAULT_PLAN.generationMode;
     const validAudioIds = new Set([...AUDIO_PRESETS.map(preset => preset.id), 'custom']);
 
-    const audioId = validAudioIds.has(raw.audioId) ? raw.audioId : DEFAULT_PLAN.audioId;
+    const replacement = REPLACED_AUDIO_IDS.get(raw.audioId);
+    const requestedAudioId = replacement ?? raw.audioId;
+    const audioId = validAudioIds.has(requestedAudioId) ? requestedAudioId : DEFAULT_PLAN.audioId;
     const nativeBpm = audioPreset(audioId).defaultBpm;
 
     return {
       name: String(raw.name || DEFAULT_PLAN.name).trim().slice(0, 60) || DEFAULT_PLAN.name,
       gestureIds,
-      bpm: _clamp(raw.bpm, Math.min(30, nativeBpm), Math.max(180, nativeBpm), nativeBpm),
+      bpm: _clamp(replacement ? nativeBpm : raw.bpm, Math.min(30, nativeBpm), Math.max(180, nativeBpm), nativeBpm),
       sourceBpm: _clamp(raw.sourceBpm ?? raw.bpm, 30, 300, nativeBpm),
       fallDurationMs: _clamp(raw.fallDurationMs, 1000, 5000, DEFAULT_PLAN.fallDurationMs),
       hitWindowMs: _clamp(raw.hitWindowMs, 100, 500, DEFAULT_PLAN.hitWindowMs),
@@ -236,7 +238,7 @@ const ExerciseBuilder = (() => {
 
   function audioPreset(id) {
     if (id === 'custom' && _customAudio) return _customAudio;
-    return AUDIO_PRESETS.find(preset => preset.id === id)
+    return AUDIO_PRESETS.find(preset => preset.id === (REPLACED_AUDIO_IDS.get(id) ?? id))
       || AUDIO_PRESETS.find(preset => preset.id === DEFAULT_PLAN.audioId);
   }
 
@@ -340,10 +342,11 @@ const ExerciseBuilder = (() => {
 
   function createQuickTraining(audioId, catalogue = _catalogue(), overrides = {}) {
     const preset = audioPreset(audioId);
+    const selected = normalizePlan(loadPlan(), catalogue).gestureIds;
     return createSession({
       ...DEFAULT_PLAN,
       name: _t`Быстрая тренировка: ${preset.name}`,
-      gestureIds: catalogue.map(gesture => gesture.id),
+      gestureIds: selected.length ? selected : catalogue.map(gesture => gesture.id),
       bpm: preset.defaultBpm,
       actionCount: 30,
       audioId: preset.id,

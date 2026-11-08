@@ -80,26 +80,26 @@ assert.strictEqual(session.exercise.bpm, 56);
 assert.strictEqual(session.exercise.seed, 12345);
 
 const recorded = context.ExerciseBuilder.createSession({
-  ...basePlan, bpm: 96, fallDurationMs: 2800, audioId: 'blue-tractor', audioLoop: false, actionCount: 200,
+  ...basePlan, bpm: 96, fallDurationMs: 2800, audioId: 'carefree', audioLoop: false, actionCount: 200,
 }, catalogue);
 assert.strictEqual(recorded.exercise.bpm, 96, 'A recording keeps its native tempo');
-assert.strictEqual(recorded.notes[0].time, 5794);
+assert.strictEqual(recorded.notes[0].time, 3329);
 assert.strictEqual(recorded.notes[1].time - recorded.notes[0].time, 625);
 assert.ok(recorded.notes.at(-1).time < recorded.playbackLeadMs + recorded.trackDurationMs);
 assert.strictEqual(recorded.exercise.actionCount, recorded.notes.length);
 const repeated = context.ExerciseBuilder.createSession({
-  ...basePlan, bpm: 96, fallDurationMs: 2800, audioId: 'blue-tractor', audioLoop: true, actionCount: 200,
+  ...basePlan, bpm: 125, fallDurationMs: 2800, audioId: 'potter', audioLoop: true, actionCount: 200,
 }, catalogue);
 assert.strictEqual(repeated.notes.length, 200);
-assert.strictEqual(repeated.notes[recorded.notes.length].time, repeated.trackDurationMs + repeated.notes[0].time);
+assert.strictEqual(repeated.notes[context.ExerciseBuilder.audioPreset("potter").beats.length].time, repeated.trackDurationMs + repeated.notes[0].time);
 const faster = context.ExerciseBuilder.createSession({
-  ...basePlan, audioId: 'blue-tractor', bpm: 144, fallDurationMs: 1400,
+  ...basePlan, audioId: 'carefree', bpm: 144, fallDurationMs: 1400,
 }, catalogue);
 assert.equal(faster.playbackRate, 3);
 assert.equal(faster.exercise.bpm, 288);
 assert.ok(Math.abs(faster.approachTimeMs * 3 - recorded.approachTimeMs) < 0.001);
 assert.ok(Math.abs((faster.notes[1].time - faster.notes[0].time) * 3 - 625) < 0.001);
-assert.ok(Math.abs((faster.notes[0].time - faster.playbackLeadMs) * 3 - 2494) < 0.001);
+assert.ok(Math.abs((faster.notes[0].time - faster.playbackLeadMs) * 3 - 29) < 0.001);
 const potter = context.ExerciseBuilder.createSession({ ...basePlan, audioId: 'potter' }, catalogue);
 assert.notStrictEqual(potter.notes[1].time - potter.notes[0].time, potter.notes[2].time - potter.notes[1].time);
 assert.strictEqual(context.ExerciseBuilder.createQuickTraining('monkeys', catalogue).exercise.bpm, 144);
@@ -109,5 +109,10 @@ assert.deepStrictEqual(Array.from(fistTargets), [0, 1, 2, 3, 4]);
 
 context.ExerciseBuilder.savePlan(basePlan);
 assert.strictEqual(context.ExerciseBuilder.loadPlan().name, 'Пальцы 1–3');
+const quick = context.ExerciseBuilder.createQuickTraining('the-builder', catalogue);
+assert.deepStrictEqual(Array.from(quick.gestureIds), ['thumb', 'pair']);
+const migrated = context.ExerciseBuilder.normalizePlan({ audioId: 'blue-tractor', bpm: 96 }, catalogue);
+assert.equal(migrated.audioId, 'the-builder');
+assert.equal(migrated.bpm, 123);
 assert.throws(() => context.ExerciseBuilder.createSession({ gestureIds: [] }, catalogue));
 console.log('Exercise builder passed.');
