@@ -27,6 +27,7 @@ const Game = (() => {
   const DEFAULT_APPROACH_MS = 2800;
   const SENSOR_KEYS  = ['keyPinch', 'indexThumb', 'middleThumb', 'ring', 'little'];
   const SENSOR_MAX   = 4095;
+  const SCORE_AWARD_CHANCE = 0.5;
 
   function _boundedNumber(value, fallback, min, max) {
     const numeric = Number(value);
@@ -363,9 +364,11 @@ const Game = (() => {
                      :                  'OK';
       _combo++;
       _maxCombo = Math.max(_maxCombo, _combo);
-      const points = accuracy === 'PERFECT' ? 100 * Math.min(_combo, 10)
+      const basePoints = accuracy === 'PERFECT' ? 100 * Math.min(_combo, 10)
                    : accuracy === 'GOOD'    ?  70 * Math.min(_combo, 10)
                    :                           40;
+      // Roll once per hit; gesture accuracy and combo still reflect actual play.
+      const points = Math.random() < SCORE_AWARD_CHANCE ? basePoints : 0;
       _score += points;
       GameResults.recordHit(_resultSession, best, _gestureForLane, { movementTimeMs: nowMs });
       _flashes.push({ lane, t: performance.now(), label: accuracy, points });
