@@ -559,6 +559,13 @@
           <input type="text" inputmode="numeric" pattern="[0-9]*" id="settings-window" value="240" />
           <span id="settings-window-val">240</span>
         </label>
+        <div class="score-chance-setting">
+          <label for="settings-score-chance">Шанс начисления очков</label>
+          <input type="range" id="settings-score-chance" min="0" max="100" step="1" value="50"
+                 aria-describedby="settings-score-chance-hint" aria-valuetext="50%" />
+          <output for="settings-score-chance" id="settings-score-chance-value" aria-live="off">50%</output>
+          <p class="setting-hint" id="settings-score-chance-hint">Вероятность получить очки за каждое попадание.</p>
+        </div>
         <label>
           <span>Громкость</span>
           <input type="text" inputmode="numeric" pattern="[0-9]*" id="settings-vol" value="80" />

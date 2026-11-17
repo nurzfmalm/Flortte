@@ -203,6 +203,8 @@ const App = (() => {
     const approachValue = document.getElementById('settings-approach-val');
     const windowInput = document.getElementById('settings-window');
     const windowValue = document.getElementById('settings-window-val');
+    const scoreChanceInput = document.getElementById('settings-score-chance');
+    const scoreChanceValue = document.getElementById('settings-score-chance-value');
     const volumeInput = document.getElementById('settings-vol');
     const volumeValue = document.getElementById('settings-vol-val');
     const saveButton = document.getElementById('settings-save');
@@ -227,6 +229,14 @@ const App = (() => {
     windowValue.textContent = Game.getWindow();
     volumeInput.value = Math.round(AudioPlayer.getVolume() * 100);
     volumeValue.textContent = `${volumeInput.value}%`;
+    const updateScoreChance = () => {
+      const percent = `${scoreChanceInput.value}%`;
+      scoreChanceValue.value = percent;
+      scoreChanceInput.setAttribute('aria-valuetext', percent);
+    };
+    scoreChanceInput.value = Game.getScoreChance();
+    updateScoreChance();
+    scoreChanceInput.addEventListener('input', updateScoreChance);
 
     approachInput.addEventListener('input', () => {
       markNumber(approachInput, 1000, 5000);
@@ -259,6 +269,7 @@ const App = (() => {
       const volume = readNumber(volumeInput, 0, 100, Math.round(AudioPlayer.getVolume() * 100));
       Game.setApproachTime(approach);
       Game.setWindow(hitWindow);
+      Game.setScoreChance(scoreChanceInput.valueAsNumber);
       AudioPlayer.setVolume(volume / 100);
       approachValue.textContent = _t`${approach} мс`;
       windowValue.textContent = hitWindow;

@@ -321,6 +321,8 @@ const ENGLISH_MESSAGES = {
   "Время падения по умолчанию": "Default tile fall time",
   "2800 мс": "2800 ms",
   "Окно попадания (мс)": "Hit window (ms)",
+  "Шанс начисления очков": "Scoring chance",
+  "Вероятность получить очки за каждое попадание.": "The chance of earning points for each hit.",
   "Громкость": "Volume",
   "Маппинг жестов": "Gesture mapping",
   "В игре используются девять жестов с картинками. Генератор распределяет выбранные жесты по отдельным лейнам.": "The game uses nine illustrated gestures. The generator assigns selected gestures to separate lanes.",

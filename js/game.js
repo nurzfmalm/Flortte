@@ -27,7 +27,8 @@ const Game = (() => {
   const DEFAULT_APPROACH_MS = 2800;
   const SENSOR_KEYS  = ['keyPinch', 'indexThumb', 'middleThumb', 'ring', 'little'];
   const SENSOR_MAX   = 4095;
-  const SCORE_AWARD_CHANCE = 0.5;
+  const DEFAULT_SCORE_CHANCE = 50;
+  const SCORE_CHANCE_KEY = 'game_score_chance';
 
   function _boundedNumber(value, fallback, min, max) {
     const numeric = Number(value);
@@ -59,6 +60,7 @@ const Game = (() => {
   let _sessionApproachTime = _approachTime;
   let _window  = _readStoredNumber('game_window', 240, 100, 500); // hit window ms
   let _sessionWindow = _window;
+  let _scoreChance = Math.round(_readStoredNumber(SCORE_CHANCE_KEY, DEFAULT_SCORE_CHANCE, 0, 100));
   let _noteIndex = 0;
 
   // Active note tiles on screen: { note, lane, time, duration, hit, miss, opacity }
@@ -368,7 +370,7 @@ const Game = (() => {
                    : accuracy === 'GOOD'    ?  70 * Math.min(_combo, 10)
                    :                           40;
       // Roll once per hit; gesture accuracy and combo still reflect actual play.
-      const points = Math.random() < SCORE_AWARD_CHANCE ? basePoints : 0;
+      const points = Math.random() < _scoreChance / 100 ? basePoints : 0;
       _score += points;
       GameResults.recordHit(_resultSession, best, _gestureForLane, { movementTimeMs: nowMs });
       _flashes.push({ lane, t: performance.now(), label: accuracy, points });
@@ -651,11 +653,20 @@ const Game = (() => {
   }
   function getApproachTime() { return _approachTime; }
   function getWindow()  { return _window; }
+  function setScoreChance(value) {
+    _scoreChance = Math.round(_boundedNumber(value, _scoreChance, 0, 100));
+    _saveSetting(SCORE_CHANCE_KEY, _scoreChance);
+  }
+  function getScoreChance() { return _scoreChance; }
   function isActive()   { return _active; }
   function isPaused()   { return _paused; }
 
   function onScoreChange(fn) { _scoreListeners.push(fn); }
   function onEnd(fn)         { _endListeners.push(fn); }
 
-  return { init, prepare, start, stop, pause, resume, isActive, isPaused, setApproachTime, setWindow, getApproachTime, getWindow, onScoreChange, onEnd };
+  return {
+    init, prepare, start, stop, pause, resume, isActive, isPaused,
+    setApproachTime, setWindow, setScoreChance, getApproachTime, getWindow, getScoreChance,
+    onScoreChange, onEnd,
+  };
 })();

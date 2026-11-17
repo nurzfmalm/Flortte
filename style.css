@@ -1622,6 +1622,14 @@ input[type="range"] { accent-color: var(--accent); min-height: 44px; }
 .audio-status:empty { display: none; }
 .game-hud .audio-status { color: var(--stage-text); max-width: 20ch; }
 .settings-body output { min-width: 4ch; text-align: right; }
+.score-chance-setting {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+}
+.score-chance-setting > :is(label, p) { grid-column: 1 / -1; }
+.score-chance-setting > input { width: 100%; min-width: 0; }
 @media (max-width: 560px) {
   .home-toolbar { align-items: flex-start; flex-direction: column; }
   .home-preferences { justify-content: flex-start; }
