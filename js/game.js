@@ -27,8 +27,8 @@ const Game = (() => {
   const DEFAULT_APPROACH_MS = 2800;
   const SENSOR_KEYS  = ['keyPinch', 'indexThumb', 'middleThumb', 'ring', 'little'];
   const SENSOR_MAX   = 4095;
-  const DEFAULT_SCORE_CHANCE = 50;
-  const SCORE_CHANCE_KEY = 'game_score_chance';
+  const DEFAULT_AUTO_HIT_PERCENT = 50;
+  const AUTO_HIT_PERCENT_KEY = 'game_score_chance';
 
   function _boundedNumber(value, fallback, min, max) {
     const numeric = Number(value);
@@ -60,7 +60,8 @@ const Game = (() => {
   let _sessionApproachTime = _approachTime;
   let _window  = _readStoredNumber('game_window', 240, 100, 500); // hit window ms
   let _sessionWindow = _window;
-  let _scoreChance = Math.round(_readStoredNumber(SCORE_CHANCE_KEY, DEFAULT_SCORE_CHANCE, 0, 100));
+  let _autoHitPercent = Math.round(_readStoredNumber(AUTO_HIT_PERCENT_KEY, DEFAULT_AUTO_HIT_PERCENT, 0, 100));
+  let _autoHitNotes = new Set();
   let _noteIndex = 0;
 
   // Active note tiles on screen: { note, lane, time, duration, hit, miss, opacity }
@@ -360,25 +361,7 @@ const Game = (() => {
     }
 
     if (best) {
-      best.hit = true;
-      const accuracy = bestDist < 60  ? 'PERFECT'
-                     : bestDist < 120 ? 'GOOD'
-                     :                  'OK';
-      _combo++;
-      _maxCombo = Math.max(_maxCombo, _combo);
-      const basePoints = accuracy === 'PERFECT' ? 100 * Math.min(_combo, 10)
-                   : accuracy === 'GOOD'    ?  70 * Math.min(_combo, 10)
-                   :                           40;
-      // Roll once per hit; gesture accuracy and combo still reflect actual play.
-      const points = Math.random() < _scoreChance / 100 ? basePoints : 0;
-      _score += points;
-      GameResults.recordHit(_resultSession, best, _gestureForLane, { movementTimeMs: nowMs });
-      _flashes.push({ lane, t: performance.now(), label: accuracy, points });
-      _emitScore();
-
-      // Lane DOM flash
-      _laneKeys[lane]?.classList.add('hit');
-      setTimeout(() => _laneKeys[lane]?.classList.remove('hit'), 180);
+      _registerHit(best, bestDist, nowMs);
     } else {
       // Wrong lane or miss
       _combo = 0;
@@ -386,19 +369,55 @@ const Game = (() => {
     }
   }
 
+  function _registerHit(tile, distance, movementTimeMs) {
+    tile.hit = true;
+    const accuracy = distance < 60 ? 'PERFECT' : distance < 120 ? 'GOOD' : 'OK';
+    _combo++;
+    _maxCombo = Math.max(_maxCombo, _combo);
+    const multiplier = Math.min(_combo, 10);
+    const points = accuracy === 'PERFECT' ? 100 * multiplier
+                 : accuracy === 'GOOD' ? 70 * multiplier : 40;
+    _score += points;
+    GameResults.recordHit(_resultSession, tile, _gestureForLane, { movementTimeMs });
+    _flashes.push({ lane: tile.lane, t: performance.now(), label: accuracy, points });
+    _emitScore();
+    _laneKeys[tile.lane]?.classList.add('hit');
+    setTimeout(() => _laneKeys[tile.lane]?.classList.remove('hit'), 180);
+  }
+
   // ── Tile management ───────────────────────────────────────
+  function _selectAutoHitNotes(notes) {
+    const playable = [];
+    notes.forEach((note, index) => {
+      if (note.lane != null) playable.push(index);
+    });
+    const count = Math.round(playable.length * _autoHitPercent / 100);
+    if (count === playable.length) return new Set(playable);
+
+    // Sample without replacement so the selected share is exact after rounding.
+    for (let index = 0; index < count; index++) {
+      const other = index + Math.floor(Math.random() * (playable.length - index));
+      [playable[index], playable[other]] = [playable[other], playable[index]];
+    }
+    return new Set(playable.slice(0, count));
+  }
+
   function _spawnTiles(currentMs) {
     const horizon = currentMs + _sessionApproachTime;
     while (_noteIndex < _song.notes.length && _song.notes[_noteIndex].time <= horizon) {
-      const n = _song.notes[_noteIndex++];
+      const index = _noteIndex++;
+      const n = _song.notes[index];
       if (n.lane === null || n.lane === undefined) continue; // auto-play only, no tile
-      _tiles.push({ ...n, hit: false, miss: false, opacity: 1 });
+      _tiles.push({ ...n, autoHit: _autoHitNotes.has(index), hit: false, miss: false, opacity: 1 });
     }
   }
 
   function _cleanTiles(currentMs) {
     for (const tile of _tiles) {
-      if (!tile.hit && !tile.miss && tile.time < currentMs - _sessionWindow) {
+      if (tile.hit || tile.miss) continue;
+      if (tile.autoHit && tile.time <= currentMs) {
+        _registerHit(tile, 0);
+      } else if (tile.time < currentMs - _sessionWindow) {
         tile.miss = true;
         _combo = 0;
         _emitScore();
@@ -552,10 +571,8 @@ const Game = (() => {
       _ctx.shadowColor = _ctx.fillStyle;
       _ctx.shadowBlur  = 8 * dpr;
       _ctx.fillText(_t(f.label), lx, ly);
-      if (f.points > 0) {
-        _ctx.font = `${10 * dpr}px Consolas, "Courier New", monospace`;
-        _ctx.fillText(`+${f.points}`, lx, ly + 15 * dpr);
-      }
+      _ctx.font = `${10 * dpr}px Consolas, "Courier New", monospace`;
+      _ctx.fillText(`+${f.points}`, lx, ly + 15 * dpr);
       _ctx.restore();
     }
   }
@@ -571,6 +588,7 @@ const Game = (() => {
     prepare(song);
     (song.notes || []).forEach(note => { delete note.resultRecorded; });
     _song      = song;
+    _autoHitNotes = _selectAutoHitNotes(song.notes || []);
     _sessionApproachTime = _boundedNumber(song.approachTimeMs, _approachTime, 700, 11200);
     _sessionWindow = _boundedNumber(song.hitWindowMs, _window, 100, 500);
     _noteIndex = 0;
@@ -596,6 +614,11 @@ const Game = (() => {
         if (audioStatus) audioStatus.textContent = _t('Фоновое аудио недоступно.');
       },
       onEnd:  () => {
+        if (_playCtl) {
+          const currentMs = _playCtl.currentMs;
+          _spawnTiles(currentMs);
+          _cleanTiles(currentMs);
+        }
         _active = false;
         const result = GameResults.finalizeSession(_resultSession, {
           score: _score,
@@ -653,11 +676,11 @@ const Game = (() => {
   }
   function getApproachTime() { return _approachTime; }
   function getWindow()  { return _window; }
-  function setScoreChance(value) {
-    _scoreChance = Math.round(_boundedNumber(value, _scoreChance, 0, 100));
-    _saveSetting(SCORE_CHANCE_KEY, _scoreChance);
+  function setAutoHitPercent(value) {
+    _autoHitPercent = Math.round(_boundedNumber(value, _autoHitPercent, 0, 100));
+    _saveSetting(AUTO_HIT_PERCENT_KEY, _autoHitPercent);
   }
-  function getScoreChance() { return _scoreChance; }
+  function getAutoHitPercent() { return _autoHitPercent; }
   function isActive()   { return _active; }
   function isPaused()   { return _paused; }
 
@@ -666,7 +689,7 @@ const Game = (() => {
 
   return {
     init, prepare, start, stop, pause, resume, isActive, isPaused,
-    setApproachTime, setWindow, setScoreChance, getApproachTime, getWindow, getScoreChance,
+    setApproachTime, setWindow, setAutoHitPercent, getApproachTime, getWindow, getAutoHitPercent,
     onScoreChange, onEnd,
   };
 })();

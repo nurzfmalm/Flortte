@@ -4,7 +4,7 @@ Flortte is an offline app for a five-finger ESP32 piano glove. The app reads the
 
 After every exercise, Flortte stores the success rate, mean timing error (MTE) and timing variability (population standard deviation). Diagnostics shows these metrics for the full session and each finger, then compares MTE with earlier attempts of the same exercise.
 
-Each successful hit has a 50% chance of awarding its usual points by default. To change it, use the **Scoring chance** slider under **Settings → Game** and select **Save**. Every hit counts toward the combo and training accuracy. The points popup appears when points are awarded. Each tile gets one scoring chance.
+In **Settings → Game**, the **Automatic note hits** slider sets the share of playable notes that score without input (50% by default). For example, at 70%, the game randomly selects 7 of 10 notes to count as hits when they reach the hit line. The game rounds to the nearest whole note. Manual hits earn normal points. Automatic hits count toward accuracy and combos, and timing metrics use manual hits.
 
 The training builder generates a repeatable sequence of selected gestures. Song beats determine when tiles cross the target line. Tempo and fall speed scale music and tiles together. Quick training uses the gesture selection saved in the builder. To play your own recording, choose **Import a song** from the quick training screen, select an audio or MIDI file, and set the source BPM and first beat for an audio recording. MIDI files supply their own tempo map. See [music credits](assets/audio/CREDITS.md) for the bundled recordings.
 
