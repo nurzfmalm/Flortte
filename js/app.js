@@ -171,7 +171,7 @@ const App = (() => {
     const scoreElement = document.getElementById('hud-score');
     const comboElement = document.getElementById('hud-combo');
     Game.onScoreChange(({ score, combo }) => {
-      scoreElement.textContent = score.toLocaleString();
+      scoreElement.textContent = score.toLocaleString(_t('ru-RU'));
       comboElement.textContent = combo > 1 ? `x${combo}` : '';
     });
 
@@ -183,7 +183,7 @@ const App = (() => {
         : '';
       _showGameOverlay(
         _t('🎉 Тренировка завершена!'),
-        _t`Счёт: ${score.toLocaleString()} · Успех: ${successPercent}% · ${hits} из ${totalNotes} плиток${timingText}`,
+        _t`Счёт: ${score.toLocaleString(_t('ru-RU'))} · Успех: ${successPercent}% · ${hits} из ${totalNotes} плиток${timingText}`,
         _t('Повторить тренировку'),
         () => {
           if (_loadedSession) Game.start(_loadedSession);

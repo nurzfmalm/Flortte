@@ -25,7 +25,11 @@ const context = vm.createContext({
   AudioPlayer: { play(song, options) { end = options.onEnd; return clock; } },
 });
 const gradient = { addColorStop() {} };
-const ctx = new Proxy({}, { get: (_, key) => key === 'createLinearGradient' ? () => gradient : () => {} });
+const drawnLabels = [];
+const ctx = new Proxy({
+  createLinearGradient: () => gradient,
+  fillText: label => drawnLabels.push(label),
+}, { get: (target, key) => target[key] ?? (() => {}) });
 context.document.getElementById = id => id === 'game-canvas' ? {
   getContext: () => ctx, getBoundingClientRect: () => ({ width: 100, height: 100 }),
 } : null;
@@ -40,6 +44,8 @@ game.start({ notes: [1000, 2000, 3000].map(time => ({ lane: 0, time })), duratio
 frame(0);
 sensor(true);
 assert.equal(snapshot.score, 100);
+frame(0);
+assert.ok(drawnLabels.includes('+100'), 'Awarded points appear on the canvas');
 sensor(true);
 assert.equal(rolls, 1, 'Repeated sensor packets cannot reroll a tile');
 sensor(false);
@@ -47,6 +53,10 @@ clock.currentMs = 2000;
 sensor(true);
 assert.equal(snapshot.score, 100, 'A roll at the 50% boundary awards no points');
 assert.equal(snapshot.combo, 2);
+drawnLabels.length = 0;
+frame(0);
+assert.equal(drawnLabels.filter(label => label === 'PERFECT').length, 2, 'Both hits show accuracy');
+assert.ok(!drawnLabels.includes('+0'), 'The scoring roll is hidden');
 sensor(false);
 clock.currentMs = 3000;
 sensor(true);

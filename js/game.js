@@ -550,8 +550,10 @@ const Game = (() => {
       _ctx.shadowColor = _ctx.fillStyle;
       _ctx.shadowBlur  = 8 * dpr;
       _ctx.fillText(_t(f.label), lx, ly);
-      _ctx.font = `${10 * dpr}px Consolas, "Courier New", monospace`;
-      _ctx.fillText(`+${f.points}`, lx, ly + 15 * dpr);
+      if (f.points > 0) {
+        _ctx.font = `${10 * dpr}px Consolas, "Courier New", monospace`;
+        _ctx.fillText(`+${f.points}`, lx, ly + 15 * dpr);
+      }
       _ctx.restore();
     }
   }

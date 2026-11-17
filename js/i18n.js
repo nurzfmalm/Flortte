@@ -1,24 +1,29 @@
-/** Offline Russian/Kazakh localization, loaded before the application modules. */
+/** Offline interface localization, loaded before the application modules. */
 const I18n = (() => {
   const STORAGE_KEY = 'flortte_language';
-  const messages = typeof KAZAKH_MESSAGES === 'undefined' ? {} : KAZAKH_MESSAGES;
+  const translations = {
+    ru: {},
+    kk: typeof KAZAKH_MESSAGES === 'undefined' ? {} : KAZAKH_MESSAGES,
+    en: typeof ENGLISH_MESSAGES === 'undefined' ? {} : ENGLISH_MESSAGES,
+  };
   let language = 'ru';
   let saved;
   try { saved = globalThis.localStorage.getItem(STORAGE_KEY); } catch (_) { /* Optional persistence. */ }
-  if (['ru', 'kk'].includes(saved)) language = saved;
+  if (Object.hasOwn(translations, saved)) language = saved;
   try {
     const requested = new URL(globalThis.location.href).searchParams.get('lang');
-    if (['ru', 'kk'].includes(requested)) language = requested;
+    if (Object.hasOwn(translations, requested)) language = requested;
   } catch (_) {
     // Non-browser consumers can use the saved language without a URL.
   }
+  const messages = translations[language];
 
   function t(message, ...values) {
     const tagged = Array.isArray(message);
     const key = tagged
       ? message.map((part, index) => part + (index < values.length ? '${' + index + '}' : '')).join('')
       : String(message);
-    const translated = language === 'kk' && Object.hasOwn(messages, key) ? messages[key] : key;
+    const translated = Object.hasOwn(messages, key) ? messages[key] : key;
     // Plain strings, including user-supplied values, are never interpolated.
     return tagged ? translated.replace(/\$\{(\d+)\}/g, (_, index) => String(values[Number(index)])) : translated;
   }
@@ -47,7 +52,7 @@ const I18n = (() => {
       select.value = language;
       select.addEventListener('change', () => {
         const next = select.value;
-        if (!['ru', 'kk'].includes(next) || next === language) return;
+        if (!Object.hasOwn(translations, next) || next === language) return;
         try { localStorage.setItem(STORAGE_KEY, next); } catch (_) { /* URL preserves this session's choice. */ }
         const url = new URL(location.href);
         url.searchParams.set('lang', next);
@@ -58,5 +63,5 @@ const I18n = (() => {
   }
 
   if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', init);
-  return { t, translateDocument, get language() { return language; }, get locale() { return language === 'kk' ? 'kk-KZ' : 'ru-RU'; } };
+  return { t, translateDocument, get language() { return language; }, get locale() { return t('ru-RU'); } };
 })();
